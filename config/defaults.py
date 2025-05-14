@@ -12,7 +12,11 @@ _C.SEED = 0
 # Detect algorithm
 # -----------------------------------------------------------------------------
 _C.DETECT = CN()
-_C.DETECT.NORMAL_SAMPLE = 10
+_C.DETECT.REF_SAMPLE = 5 # Number of reference samples
+_C.DETECT.SIMILARITY_METHOD = 'dtw'
+_C.DETECT.OUTLIER_METHOD = 'zscore'
+_C.DETECT.SAMPLE_THRESHOLD = 0.75
+_C.DETECT.SIGNAL_THRESHOLD = 0.75
 
 # -----------------------------------------------------------------------------
 # MODEL

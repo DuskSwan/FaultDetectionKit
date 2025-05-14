@@ -122,7 +122,7 @@ def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
             )
     return float(dtw[n, m])
 
-def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarray, method: str = 'cosine') -> float:
+def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarray, method: str = 'cosine', weights='auto') -> float:
     """
     计算两个多通道信号之间的相似度或者距离。
 
@@ -161,4 +161,12 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarra
         # logger.info(f"相似度/距离: {similarities}")
         # logger.info(f"各通道相似度: {similarities}")
         # logger.info(f"平均相似度: {np.mean(similarities)}")
-        return similarities
+        if weights == 'auto':
+            # 如果权重为 'auto'，则采用均匀权重
+            res = np.mean(similarities)
+        elif isinstance(weights, (list, np.ndarray)):
+            # 如果权重是列表或数组，确保长度与通道数相同
+            if len(weights) != signal1.shape[1]:
+                raise ValueError(f"权重的长度 {len(weights)} 与信号的通道数 {signal1.shape[1]} 不匹配。")
+            res = np.dot(similarities, weights) / np.sum(weights)
+        return res

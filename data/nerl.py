@@ -22,12 +22,64 @@ def load_signal_from_mat(file_path) -> pd.DataFrame:
         df[k] = pd.Series(v)
     return df
 
+def get_samples_from_signal(signal:np.ndarray, sample_n, window_size) -> np.array:
+    """
+    Get samples from signal
+    Args:
+        signal (np.ndarray): Signal data.
+        sample_n (int): Number of samples to generate.
+        window_size (int): Size of the window for each sample.
+    Returns:
+        np.ndarray: Samples extracted from the signal.
+    """
+    n_samples = len(signal) // window_size
+    assert n_samples >= sample_n, f"Not enough samples in {signal} to get {sample_n} samples."
+
+    X = [] # (n_samples, window_size, n_channels)
+
+    for i in range(sample_n):
+        start = i * window_size
+        end = start + window_size
+        if end > len(signal):
+            break
+        X.append(signal[start:end])
+
+    return np.array(X)
+
+def get_samples_from_mat(file_path, sample_n, window_size) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Get samples from .mat file
+    Args:
+        file_path (str): Path to the .mat file.
+        sample_n (int): Number of samples to generate.
+        window_size (int): Size of the window for each sample.
+    Returns:
+        tuple: Tuple containing the samples and labels.
+    """
+    df = load_signal_from_mat(file_path)
+    n_samples = len(df) // window_size
+    assert n_samples >= sample_n, f"Not enough samples in {file_path} to get {sample_n} samples."
+
+    X = [] # (n_samples, window_size, n_channels)
+    y = [] # (n_samples, )
+
+    for i in range(sample_n):
+        start = i * window_size
+        end = start + window_size
+        if end > len(df):
+            break
+        X.append(df.iloc[start:end].values)
+        y.append(0 if "Healthy" in str(file_path) else 1)
+
+    return np.array(X), np.array(y)
+
 def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.ndarray]:
     """
     Build dataset for NREL data
     Args:
         sample_n (int): Number of samples to generate.
         window_size (int): Size of the window for each sample.
+        is_train (bool): Whether to use training data or not. If True, use only healthy data.
     Returns:
         tuple: Tuple containing the samples and labels.
     """
@@ -57,8 +109,14 @@ def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.
     for i,mat_path in enumerate(mat_paths):
         per_file_samples = sample_per_file_list[i]
         df = load_signal_from_mat(mat_path)
-        for i in range(per_file_samples):
-            start = i * window_size
+
+        if is_train:
+            start_index = np.random.choice(range(len(df) - window_size), per_file_samples, replace=False)
+        else:
+            start_index = np.arange(len(df) - window_size, step=window_size)[:per_file_samples]
+        assert len(start_index) == per_file_samples, f"Not enough samples in {mat_path} to get {per_file_samples} samples."
+        
+        for start in start_index:
             end = start + window_size
             if end > len(df):
                 break
