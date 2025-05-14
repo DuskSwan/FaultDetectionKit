@@ -1,50 +1,19 @@
-# PyTorch 项目模板 自用
+# 故障检测工具
 
-fork自[L1aoXingyu/Deep-Learning-Project-Template](https://github.com/L1aoXingyu/Deep-Learning-Project-Template)
+个人实现的各种故障检测的算法。
 
-## Requirements
+## 检测思路
 
-- [loguru](https://github.com/Delgan/loguru) (Python logging made stupidly simple)
-- [yacs](https://github.com/rbgirshick/yacs) (Yet Another Configuration System)
-- [PyTorch](https://pytorch.org/) (An open source deep learning platform)
-- [ignite](https://github.com/pytorch/ignite) (High-level library to help with training neural networks in PyTorch)（可选，也不是非要用）
-- [lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) (Lightning organizes PyTorch code to remove boilerplate and unlock scalability)（想用这个）
+1. 建立有监督分类模型：根据已知的正常/异常信号建立分类模型，对未知信号做分类。
+1. 基于相似度的无监督方法：衡量正常信号之间的相似度，若未知信号与正常信号相似度过大则判为故障。
+1. 基于预测模型的无监督方法：建立回归模型拟合正常信号，若未知信号不符合预测则判为故障。
 
-## 说明
+## 常用模块
 
-目录结构如下（省略了每个目录中的__init__.py）
+### 特征提取
 
-```shell
-├──  train_model.py # 实际运行的脚本
-│ 
-│ 
-├──  config
-│    └── defaults.py  - 默认配置文件
-│    └── test_config.yml  - 实验配置文件
-│ 
-├──  datasets      - 多个数据集
-│    └── dataset1  - 数据集1
-│
-├──  data_load     - 加载数据集的脚本
-│    └── transforms  - 预处理用的一切函数
-│    └── build.py     - 产生data loader
-│
-│
-├──  engine
-│   ├── trainer.py     - 定义训练过程
-│   └── inference.py   - 定义推理过程
-│
-│
-├── modeling            - 该目录下定义模型
-│   └── example_model.py
-│
-│
-├── solver             
-│   └── build.py           - 产生求解器
-│   └── lr_scheduler.py    - 定义学习率调度器
-│   
-│ 
-└── utils            - 定义实用工具
-     ├── logger.py
-     └── any_other_utils_you_need
-```
+计算统计量作为特征，或用神经网络进行嵌入。
+
+### 相似度衡量
+
+DTW，余弦相似度等。
