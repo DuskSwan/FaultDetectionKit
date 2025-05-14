@@ -1,0 +1,18 @@
+# Github ignore
+.ipynb_checkpoints
+.vscode
+.idea
+.pypirc
+.vscode
+
+# project ignore
+__pycache__
+*.pyc
+*__pycache__
+log/
+output/
+datasets/
+
+# qt GUI file
+build
+dist
