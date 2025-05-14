@@ -24,21 +24,21 @@ def main():
     normal_signal = unknown_signals[normal_idx]
     abnormal_signal = unknown_signals[abnormal_idx]
 
-    # Calculate similarity
+    similarity_method = 'dtw'
     normal_similarity = []
     for ref_signal in norm_signals:
-        similarity = calc_multi_channel_signal_similarity(ref_signal, normal_signal)
+        similarity = calc_multi_channel_signal_similarity(ref_signal, normal_signal, method=similarity_method)
         normal_similarity.append(np.mean(similarity))
-    logger.info(f"Ref similarity: {np.mean(normal_similarity)}")
+    logger.info(f"Ref similarity: {normal_similarity}")
     
     abnormal_similarity = []
     for ref_signal in norm_signals:
-        similarity = calc_multi_channel_signal_similarity(ref_signal, abnormal_signal)
+        similarity = calc_multi_channel_signal_similarity(ref_signal, abnormal_signal, method=similarity_method)
         abnormal_similarity.append(np.mean(similarity))
-    for sim in abnormal_similarity:
-        logger.info(f"Abnormal similarity: {sim}")
+
+    for i,sim in enumerate(abnormal_similarity):
         is_outlier_result = is_outlier(ref_array=normal_similarity, value=sim, method='zscore')
-        logger.info(f"Is outlier? : {is_outlier_result}")
+        logger.info(f"{i}. similarity = {sim:.2f}. Is outlier? {is_outlier_result}")
     
 
 if __name__ == "__main__":

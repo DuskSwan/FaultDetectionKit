@@ -95,6 +95,33 @@ def pearson_correlation_coefficient(signal1: np.ndarray, signal2: np.ndarray) ->
     corr, _ = pearsonr(signal1, signal2)
     return corr
 
+def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
+    """
+    计算两个一维信号（NumPy数组）之间的 DTW（动态时间规整）距离。
+
+    参数:
+        signal1 (np.ndarray): 第一个信号，形状 (n,)。
+        signal2 (np.ndarray): 第二个信号，形状 (m,)。
+
+    返回:
+        float: 两个信号之间的 DTW 距离。
+    """
+    n, m = len(signal1), len(signal2)
+    # 初始化 DTW 矩阵，边界填充为 +inf
+    dtw = np.full((n+1, m+1), np.inf)
+    dtw[0, 0] = 0.0
+
+    for i in range(1, n+1):
+        for j in range(1, m+1):
+            cost = abs(signal1[i-1] - signal2[j-1])
+            # 三种路径：插入、删除、匹配
+            dtw[i, j] = cost + min(
+                dtw[i-1, j],    # insertion
+                dtw[i, j-1],    # deletion
+                dtw[i-1, j-1],  # match
+            )
+    return float(dtw[n, m])
+
 def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarray, method: str = 'cosine') -> float:
     """
     计算两个多通道信号之间的相似度或者距离。
@@ -120,6 +147,8 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarra
         function = chebyshev_distance
     elif method == 'pearson':
         function = pearson_correlation_coefficient
+    elif method == 'dtw':
+        function = dtw_distance
     else:
         raise ValueError("不支持的方法。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev' 或 'pearson'。")
     
