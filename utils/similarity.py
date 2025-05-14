@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.stats import pearsonr
 
+from loguru import logger
+
 def euclidean_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """
     计算两个一维信号（NumPy数组）之间的欧氏距离。
@@ -93,3 +95,41 @@ def pearson_correlation_coefficient(signal1: np.ndarray, signal2: np.ndarray) ->
     corr, _ = pearsonr(signal1, signal2)
     return corr
 
+def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarray, method: str = 'cosine') -> float:
+    """
+    计算两个多通道信号之间的相似度或者距离。
+
+    参数:
+        signal1 (np.ndarray): 第一个多通道信号，形状为 (length, channel)。
+        signal2 (np.ndarray): 第二个多通道信号，形状为 (length, channel)。
+        method (str): 相似度/距离计算方法，可以是 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson'。
+
+    返回:
+        float: 两个信号之间的相似度或者距离。
+    """
+    if signal1.shape != signal2.shape:
+        raise ValueError(f"输入信号的形状必须相同，但接收到的形状分别为 {signal1.shape} 和 {signal2.shape}。")
+    
+    if method == 'euclidean':
+        function = euclidean_distance
+    elif method == 'cosine':
+        function = cosine_similarity
+    elif method == 'manhattan':
+        function = manhattan_distance
+    elif method == 'chebyshev':
+        function = chebyshev_distance
+    elif method == 'pearson':
+        function = pearson_correlation_coefficient
+    else:
+        raise ValueError("不支持的方法。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev' 或 'pearson'。")
+    
+    if len(signal1.shape) == 1:
+        # 如果是单通道信号，直接计算
+        return function(signal1, signal2)
+    elif len(signal1.shape) == 2:
+        # 如果是多通道信号，计算每个通道的相似度，然后取平均
+        similarities = [function(signal1[:, i], signal2[:, i]) for i in range(signal1.shape[1])]
+        # logger.info(f"相似度/距离: {similarities}")
+        # logger.info(f"各通道相似度: {similarities}")
+        # logger.info(f"平均相似度: {np.mean(similarities)}")
+        return similarities

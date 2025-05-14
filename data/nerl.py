@@ -43,18 +43,19 @@ def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.
         mat_paths += list(data_dir.glob("*.mat"))
     files_n = len(mat_paths)
 
-    assert files_n < sample_n, f"Not enough files in {data_dirs} to get {sample_n} samples."
+    # assert files_n < sample_n, f"Not enough files in {data_dirs} to get {sample_n} samples."
 
-    per_file_samples = sample_n // files_n
-    if sample_n % files_n != 0:
-        per_file_samples += 1
+    sample_per_file = sample_n // files_n
+    sample_per_file_list = [sample_per_file] * files_n
+    sample_per_file_list[:sample_n % files_n] = [sample_per_file + 1] * (sample_n % files_n)
 
-    logger.info(f"Total files: {per_file_samples * files_n}, samples per file: {per_file_samples}")
+    logger.info(f"Total files: {sample_n}, samples per file: {sample_per_file_list}")
 
     X = [] # (n_samples, window_size, n_channels)
     y = [] # (n_samples, )
 
-    for mat_path in mat_paths:
+    for i,mat_path in enumerate(mat_paths):
+        per_file_samples = sample_per_file_list[i]
         df = load_signal_from_mat(mat_path)
         for i in range(per_file_samples):
             start = i * window_size
