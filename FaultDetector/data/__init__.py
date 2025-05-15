@@ -1,6 +1,4 @@
-# encoding: utf-8
-
-from .nerl import *
+import numpy as np
 
 def sliding_window(
     signal: np.ndarray,

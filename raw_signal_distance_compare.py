@@ -14,8 +14,8 @@ from config import cfg
 from data import build_dataset, get_samples_from_signal
 from data.nerl import load_signal_from_mat
 from utils import set_random_seed, initiate_cfg
-from utils.similarity import calc_multi_channel_signal_similarity
-from utils.outlier import is_outlier
+from FaultDetector.utils.similarity import calc_multi_channel_signal_similarity
+from FaultDetector.utils.outlier import is_outlier
 
 def calc_ref_similarity(ref_samples: np.ndarray, method: str, **kwargs) -> np.ndarray:
     '''计算参考信号片段之间的相似度分布'''

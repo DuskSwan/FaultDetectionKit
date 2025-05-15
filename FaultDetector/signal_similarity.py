@@ -9,9 +9,9 @@
 import numpy as np
 from loguru import logger
 
-from data import sliding_window
-from utils.similarity import calc_multi_channel_signal_similarity
-from utils.outlier import is_outlier
+from .data import sliding_window
+from .utils.similarity import calc_multi_channel_signal_similarity
+from .utils.outlier import is_outlier
 
 def calc_ref_similarity(ref_samples: np.ndarray, method: str, **kwargs) -> np.ndarray:
     '''

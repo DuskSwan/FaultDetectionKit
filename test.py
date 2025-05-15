@@ -6,7 +6,7 @@ from config import cfg
 from data.nerl import load_signal_from_mat, get_samples_from_signal, build_dataloader
 from utils import set_random_seed, initiate_cfg
 
-from detector.signal_similarity import SignalSimilarityDetector
+from FaultDetector.signal_similarity import SignalSimilarityDetector
 
 def test_dataloader():
     sample_n = cfg.TRAIN.SAMPLE_N
