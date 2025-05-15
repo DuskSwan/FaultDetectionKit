@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import pearsonr
+from dtaidistance import dtw
 
 from loguru import logger
 
@@ -122,51 +123,78 @@ def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
             )
     return float(dtw[n, m])
 
-def calc_multi_channel_signal_similarity(signal1: np.ndarray, signal2: np.ndarray, method: str = 'cosine', weights='auto') -> float:
+def dtw_distance_fast(signal1: np.ndarray, signal2: np.ndarray, dtw_radius = 1) -> float:
+    """
+    计算两个一维信号（NumPy数组）之间的 DTW（动态时间规整）距离，使用 fastdtw 库。
+
+    参数:
+        signal1 (np.ndarray): 第一个信号，形状 (n,)。
+        signal2 (np.ndarray): 第二个信号，形状 (m,)。
+
+    返回:
+        float: 两个信号之间的 DTW 距离。
+    """
+    distance = dtw.distance(signal1, signal2, window=dtw_radius)
+    return distance
+
+def calc_multi_channel_signal_similarity(signal1: np.ndarray, 
+                                         signal2: np.ndarray, 
+                                         method: str = 'cosine', 
+                                         weights='auto',
+                                         **kwargs
+                                        ) -> float:
     """
     计算两个多通道信号之间的相似度或者距离。
 
     参数:
         signal1 (np.ndarray): 第一个多通道信号，形状为 (length, channel)。
         signal2 (np.ndarray): 第二个多通道信号，形状为 (length, channel)。
-        method (str): 相似度/距离计算方法，可以是 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson'。
+        method (str): 相似度/距离计算方法，可以是 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson' 或 'dtw'。
+        weights (str or list): 权重，可以是 'auto' 或一个与通道数相同的列表。默认 'auto' 表示均匀权重。
+        **kwargs: 额外参数，比如 dtw 的 radius 参数。
 
     返回:
         float: 两个信号之间的相似度或者距离。
     """
+
     if signal1.shape != signal2.shape:
         raise ValueError(f"输入信号的形状必须相同，但接收到的形状分别为 {signal1.shape} 和 {signal2.shape}。")
     
     if method == 'euclidean':
         function = euclidean_distance
+        use_kwargs = False
     elif method == 'cosine':
         function = cosine_similarity
+        use_kwargs = False
     elif method == 'manhattan':
         function = manhattan_distance
+        use_kwargs = False
     elif method == 'chebyshev':
         function = chebyshev_distance
+        use_kwargs = False
     elif method == 'pearson':
         function = pearson_correlation_coefficient
+        use_kwargs = False
     elif method == 'dtw':
-        function = dtw_distance
+        function = dtw_distance_fast
+        use_kwargs = True
     else:
-        raise ValueError("不支持的方法。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev' 或 'pearson'。")
+        raise ValueError("不支持的方法。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson' 或 'dtw'。")
     
     if len(signal1.shape) == 1:
-        # 如果是单通道信号，直接计算
-        return function(signal1, signal2)
-    elif len(signal1.shape) == 2:
-        # 如果是多通道信号，计算每个通道的相似度，然后取平均
-        similarities = [function(signal1[:, i], signal2[:, i]) for i in range(signal1.shape[1])]
-        # logger.info(f"相似度/距离: {similarities}")
-        # logger.info(f"各通道相似度: {similarities}")
-        # logger.info(f"平均相似度: {np.mean(similarities)}")
-        if weights == 'auto':
-            # 如果权重为 'auto'，则采用均匀权重
-            res = np.mean(similarities)
-        elif isinstance(weights, (list, np.ndarray)):
-            # 如果权重是列表或数组，确保长度与通道数相同
-            if len(weights) != signal1.shape[1]:
-                raise ValueError(f"权重的长度 {len(weights)} 与信号的通道数 {signal1.shape[1]} 不匹配。")
-            res = np.dot(similarities, weights) / np.sum(weights)
-        return res
+        return function(signal1, signal2, **kwargs) if use_kwargs else function(signal1, signal2)
+
+    similarities = []
+    for i in range(signal1.shape[1]):
+        if use_kwargs:
+            similarity = function(signal1[:, i], signal2[:, i], **kwargs)
+        else:
+            similarity = function(signal1[:, i], signal2[:, i])
+        similarities.append(similarity)
+    
+    if weights == 'auto':
+        return np.mean(similarities)
+    elif isinstance(weights, (list, np.ndarray)):
+        if len(weights) != signal1.shape[1]:
+            raise ValueError(f"权重的长度 {len(weights)} 与信号的通道数 {signal1.shape[1]} 不匹配。")
+        return np.dot(similarities, weights) / np.sum(weights)
