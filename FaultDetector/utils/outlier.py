@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 
 def is_outlier_zscore(ref_array: np.ndarray, value: float, threshold: float = 3.0) -> bool:
@@ -48,23 +49,28 @@ def is_outlier_mad(ref_array: np.ndarray, value: float, threshold: float = 3.5) 
     if mad == 0:
         return False
     modified_z = 0.6745 * (value - median) / mad
-    return abs(modified_z) > threshold
+    return bool(abs(modified_z) > threshold)
 
-def is_outlier(ref_array: np.ndarray, value: float, method: str = 'zscore') -> bool:
+def is_outlier(ref_array: np.ndarray, values: List[float], method: str = 'zscore') -> List[bool]:
     """
     判断离群值。
     参数:
         ref_array (np.ndarray): 参考数组。
-        value (float): 待检测值。
+        values (float): 待检测值列表。
         method (str): 离群值检测方法，支持 'zscore'、'iqr' 和 'mad'。
     返回:
         bool: True 表示为离群值，False 表示正常值。
     """
+    assert method in ['zscore', 'iqr', 'mad'], f"不支持方法 {method}。请选择 'zscore'、'iqr' 或 'mad'。"
+    assert len(ref_array) > 0, "参考数组不能为空"
+    assert len(values) > 0, "待检测值列表不能为空"
+
     if method == 'zscore':
-        return is_outlier_zscore(ref_array, value)
+        is_outlier_func = is_outlier_zscore
     elif method == 'iqr':
-        return is_outlier_iqr(ref_array, value)
+        is_outlier_func = is_outlier_iqr
     elif method == 'mad':
-        return is_outlier_mad(ref_array, value)
-    else:
-        raise ValueError("Unsupported method. Choose from 'zscore', 'iqr', or 'mad'.")
+        is_outlier_func = is_outlier_mad
+    
+    return [is_outlier_func(ref_array, value) for value in values]
+    

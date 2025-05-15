@@ -1,0 +1,231 @@
+# -*- coding: utf-8 -*-
+
+import numpy as np
+from loguru import logger
+from typing import Optional, List
+
+from .data import sliding_window
+from .utils.similarity import calc_multi_channel_signal_similarity, calculate_pairwise_similarity
+from .utils.outlier import is_outlier
+
+class SimilarityDetector:
+    '''
+    该类是一切基于信号相似度的检测器的基类
+    该类方法的主要思路是计算参考信号片段之间的相似度分布，并判断待检测信号片段与参考信号片段之间的相似度是否为离群值
+    '''
+    def __init__(self, 
+        window_size: int = 1024,
+        window_stride: Optional[int] = None,
+        ref_sample_n: int = 5,
+        pred_sample_n: int = 5,
+        outlier_method: str = 'zscore',
+        signal_threshold: float = 0.75,
+    ):
+        # necessary parameters
+        self.window_size = window_size
+        self.ref_sample_n = ref_sample_n
+        self.pred_sample_n = pred_sample_n
+        self.outlier_method = outlier_method
+        self.signal_threshold = signal_threshold
+        # optional parameters
+        self.window_stride = window_stride
+        # parameters to be set in fit
+        self.ref_samples = np.ndarray([])
+        self.ref_measure = np.ndarray([])
+    
+    def _build_ref_samples(self, ref_signals: np.ndarray):
+        '''
+        从参考信号中构建参考样本
+        '''
+        logger.debug("Calculating reference signal similarity...")
+        samples = np.array([])
+
+        assert self.ref_sample_n > 0, "参考样本数量必须大于0"
+        ref_signal_n = len(ref_signals)
+        sample_per_signal = self.ref_sample_n // ref_signal_n
+        sample_per_signal_list = [sample_per_signal] * ref_signal_n
+        sample_per_signal_list[:self.ref_sample_n % ref_signal_n] = [sample_per_signal + 1] * (self.ref_sample_n % ref_signal_n)
+
+        for i,signal in enumerate(ref_signals):
+            if sample_per_signal_list[i] > 0:
+                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
+                samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
+        
+        indecies = np.random.choice(len(samples), size=min(self.ref_sample_n, len(samples)), replace=False)
+        self.ref_samples = samples[indecies]
+        logger.debug(f"Build reference samples of {self.ref_samples.shape}")
+    
+    def fit(self, ref_signals: np.ndarray):
+        '''
+        根据参考信号片段计算归为正常信号的参考度量（如相似度）
+        '''
+        self._build_ref_samples(ref_signals)
+        # self.ref_measure = ...
+        raise NotImplementedError("请在子类中实现该方法")
+    
+    def _check_samples(self, samples: np.ndarray) -> List[bool]:
+        '''
+        检查样本相对于参考样本是否为离群值
+        '''
+        unknown_measures = self._calc_unknown_measures(samples)
+        dectect_result = self._is_outlier(unknown_measures)
+        return dectect_result
+    
+    def _calc_unknown_measures(self, samples: np.ndarray) -> List[float]:
+        '''
+        计算待检测信号片段的度量（如相似度），每个样本计算一个度量
+        '''
+        raise NotImplementedError("请在子类中实现该方法")
+    
+    def _is_outlier(self, unknown_measures: List[float]) -> List[bool]:
+        '''
+        检查待检测信号片段的度量是否为离群值，每个度量计算一次
+        '''
+        is_outlier_result = is_outlier(ref_array=self.ref_measure, values=unknown_measures, method=self.outlier_method)
+        return is_outlier_result
+
+    def predict_one_signal(self, signal: np.ndarray) -> bool:
+        '''
+        检测信号是否为异常信号
+        参数:
+            signal (np.ndarray): 待检测信号片段，形状为 (m, c)，其中 m 是信号长度，c 是通道数。
+        返回:
+            bool: True 表示异常信号，False 表示正常信号
+        '''
+        samples = sliding_window(signal, self.window_size, self.window_stride, self.pred_sample_n)
+        outlier_list = self._check_samples(samples)
+        outlier_rate = sum(outlier_list) / len(samples)
+
+        # logger.debug(f"Outlier rate: {outlier_rate:.2f}")
+        return outlier_rate > self.signal_threshold
+
+    def predict(self, signals: np.ndarray) -> bool | list[bool]:
+        '''
+        检测信号是否为异常信号
+        参数:
+            signals (np.ndarray): 待检测信号，形状为 (n, m, c)或者(m, c)，其中 n 是信号数量，m 是每个信号的长度，c 是通道数。
+        返回:
+            bool | list[bool]: 是否为异常信号. 如果输入信号为多通道信号，则返回一个布尔值列表，表示每个信号是否为异常信号。
+        '''
+        assert self.ref_samples.size > 0 and self.ref_measure.size > 0, "请先调用 fit 方法计算参考信号相似度分布"
+        if len(signals.shape) == 2:
+            return self.predict_one_signal(signals)
+        elif len(signals.shape) == 3:
+            results = []
+            for i,signal in enumerate(signals):
+                logger.debug(f"Predicting signal {i+1}/{len(signals)}")
+                result = self.predict_one_signal(signal)
+                results.append(result)
+            return results
+        else:
+            raise ValueError("输入信号的形状不正确")
+
+class RawSignalSimilarityDetector(SimilarityDetector):
+    '''
+    本模块采取对原始信号直接比较相似度的方法来进行异常检测
+
+    训练数据仅需正常信号
+
+    流程为
+    1. 读取参考信号片段，计算参考信号片段之间的相似度分布
+    2. 读取待检测信号片段，计算待检测信号片段与参考信号片段之间的相似度
+    3. 判断待检测信号片段与参考信号的相似度是否为离群值
+    '''
+    def __init__(self, 
+                 similarity_method: str = 'dtw',
+                 dtw_radius: int = 5,
+                 sample_threshold: float = 0.75,
+                 **kwargs,
+                ):
+        # father class parameters
+        super().__init__(**kwargs)
+        # necessary parameters
+        # self.sample_threshold = sample_threshold
+        self.similarity_method = similarity_method
+        self.dtw_radius = dtw_radius
+
+    def fit(self, ref_signals: np.ndarray):
+        '''
+        根据参考信号片段计算归为正常信号的相似度分布
+        '''
+        self._build_ref_samples(ref_signals)
+        self.ref_measure = calculate_pairwise_similarity(self.ref_samples, method=self.similarity_method, dtw_radius=self.dtw_radius)
+        logger.debug(f"Reference signal similarity shape: {self.ref_measure.shape}")
+    
+    def _calc_unknown_measures(self, samples: np.ndarray) -> List[float]:
+        '''
+        计算待检测信号片段的相似度（如欧氏距离）
+        '''
+        unknown_measures = []
+        for sample in samples:
+            unknown_similarites = []
+            for ref_sample in self.ref_samples:
+                similarity = calc_multi_channel_signal_similarity(ref_sample, sample, method=self.similarity_method, dtw_radius=self.dtw_radius)
+                unknown_similarites.append(similarity)
+            unknown_measures.append(np.mean(unknown_similarites))
+        
+        return unknown_measures
+
+class ModelingDetector(SimilarityDetector):
+    '''
+    本模块采取对原始信号进行建模的方式来实现故障检测，对正常信号建立AE或LSTM模型，其在正常信号上的预测误差小，而在故障信号上的预测误差大。通过对正常信号进行建模，来实现对故障信号的检测。
+    故障信号上的误差相对于正常信号上的误差为离群值，利用离群值检测算法来判断待检测信号片段是否为故障信号。
+
+    训练仅需正常信号
+
+    流程为（以AE为例）
+    1. 读取参考信号片段，训练模型
+    2. 读取待检测信号片段，进行预测，计算预测误差
+    3. 检查预测误差是否为离群值
+    '''
+    def __init__(self, 
+                 window_size: int = 1024,
+                 window_stride: Optional[int] = None,
+                 ref_sample_n: int = 5,
+                 pred_sample_n: int = 5,
+                 model_type: str = 'AE',
+                 outlier_method: str = 'zscore',
+                 sample_threshold: float = 0.75,
+                 signal_threshold: float = 0.75,
+                ):
+        # necessary parameters
+        self.window_size = window_size
+        self.ref_sample_n = ref_sample_n
+        self.pred_sample_n = pred_sample_n
+        self.model_type = model_type
+        self.outlier_method = outlier_method
+        self.sample_threshold = sample_threshold
+        self.signal_threshold = signal_threshold
+        # optional parameters
+        self.window_stride = window_stride
+        # parameters to be set in fit
+        self.ref_samples = np.ndarray([])
+        self.model = None
+        self.ref_loss = np.ndarray([])
+    
+    def fit(self, ref_signals: np.ndarray):
+        logger.debug("Calculating reference signal similarity...")
+        samples = np.array([])
+
+        assert self.ref_sample_n > 0, "参考样本数量必须大于0"
+        ref_signal_n = len(ref_signals)
+        sample_per_signal = self.ref_sample_n // ref_signal_n
+        sample_per_signal_list = [sample_per_signal] * ref_signal_n
+        sample_per_signal_list[:self.ref_sample_n % ref_signal_n] = [sample_per_signal + 1] * (self.ref_sample_n % ref_signal_n)
+
+        for i,signal in enumerate(ref_signals):
+            if sample_per_signal_list[i] > 0:
+                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
+                samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
+        
+        # self.ref_samples = np.random.choice(samples, size=min(self.ref_sample_n, len(samples)), replace=False)
+        indecies = np.random.choice(len(samples), size=min(self.ref_sample_n, len(samples)), replace=False)
+        self.ref_samples = samples[indecies]
+
+        self.model = self._build_model()
+        # self.model.fit(self.ref_samples)
+        # self.ref_loss = self.model.predict(self.ref_samples)
+        # logger.debug(f"Reference loss: {np.mean(self.ref_loss)}")
+    
+    def _build_model(self):
+        pass

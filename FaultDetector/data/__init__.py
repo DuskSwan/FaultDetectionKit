@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Optional
+from loguru import logger
+
+import numpy as np
 
 def sliding_window(
     signal: np.ndarray,
@@ -38,9 +40,13 @@ def sliding_window(
         rng.shuffle(starts)
 
     if max_samples is not None:
+        assert max_samples > 0, f"max_samples {max_samples} must be greater than 0."
+        assert max_samples <= len(starts), f"max_samples {max_samples} must be less than or equal to the number of possible windows {len(starts)}."
         starts = starts[:max_samples]
 
     # logger.debug(f"Going to extract {len(starts)} windows from signal of length {length} with window size {win_size} and stride {stride}")
     windows = [signal[start:start + win_size] for start in starts]
+    windows = np.stack(windows)
+    logger.debug(f"Extracted samples of shape: {windows.shape}")
 
-    return np.stack(windows)
+    return windows

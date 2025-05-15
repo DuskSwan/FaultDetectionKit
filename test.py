@@ -6,7 +6,8 @@ from config import cfg
 from data.nerl import load_signal_from_mat, get_samples_from_signal, build_dataloader
 from utils import set_random_seed, initiate_cfg
 
-from FaultDetector.signal_similarity import SignalSimilarityDetector
+# from FaultDetector.signal_similarity import SignalSimilarityDetector
+from FaultDetector.similarity_based import RawSignalSimilarityDetector
 
 def test_dataloader():
     sample_n = cfg.TRAIN.SAMPLE_N
@@ -43,7 +44,7 @@ def test_similarity_detector():
     ref_signals = np.array(ref_signals)
 
     # Call the detector
-    detector = SignalSimilarityDetector(
+    detector = RawSignalSimilarityDetector(
         ref_sample_n=ref_sample_n,
         pred_sample_n=test_sample_n,
         window_size=window_size,
@@ -56,11 +57,11 @@ def test_similarity_detector():
     detector.fit(ref_signals)
 
     # Load test signal
-    # test_signal_path = Path(r"datasets\NREL\Damaged\D1.mat")
-    test_signal_path = Path(r"datasets\NREL\Healthy\H1.mat")
+    test_signal_path = Path(r"datasets\NREL\Damaged\D2.mat")
+    # test_signal_path = Path(r"datasets\NREL\Healthy\H1.mat")
     test_signal = load_signal_from_mat(test_signal_path).values
     pred_label = detector.predict(test_signal)
-    true_label = 1 if "Damaged" in str(test_signal_path) else 0
+    true_label = "Damaged" in str(test_signal_path)
     logger.info(f"Test signal is abnormal? {pred_label}. True label: {true_label}.")
 
 

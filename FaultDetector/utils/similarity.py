@@ -17,7 +17,7 @@ def euclidean_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """
     if signal1.shape != signal2.shape:
         raise ValueError("输入信号的形状必须相同。")
-    return np.linalg.norm(signal1 - signal2)
+    return float(np.linalg.norm(signal1 - signal2))
 
 def cosine_similarity(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """
@@ -135,14 +135,14 @@ def dtw_distance_fast(signal1: np.ndarray, signal2: np.ndarray, dtw_radius = 1) 
         float: 两个信号之间的 DTW 距离。
     """
     distance = dtw.distance(signal1, signal2, window=dtw_radius)
-    return distance
+    return float(distance)
 
 def calc_multi_channel_signal_similarity(signal1: np.ndarray, 
                                          signal2: np.ndarray, 
                                          method: str = 'cosine', 
                                          weights='auto',
                                          **kwargs
-                                        ) -> float:
+                                        ) -> float | None:
     """
     计算两个多通道信号之间的相似度或者距离。
 
@@ -198,3 +198,27 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray,
         if len(weights) != signal1.shape[1]:
             raise ValueError(f"权重的长度 {len(weights)} 与信号的通道数 {signal1.shape[1]} 不匹配。")
         return np.dot(similarities, weights) / np.sum(weights)
+
+def calculate_pairwise_similarity(ref_samples: np.ndarray, method: str, **kwargs) -> np.ndarray:
+    '''
+    计算参考信号片段之间的相似度分布，每个片段都是一个多通道信号
+    参数:
+        ref_samples (np.ndarray): 参考信号片段，形状为 (n, m, c)，其中 n 是片段数量，m 是每个片段的长度，c 是通道数。
+        method (str): 相似度计算方法，支持 'cosine'、'euclidean'、'dtw' 等。
+        **kwargs: 其他参数，例如 dtw_radius。
+    返回:
+        np.ndarray: 参考信号片段之间的相似度分布，形状为 (n, n)，其中 n 是片段数量。    
+    '''
+    n = len(ref_samples)
+    ref_similarities = []
+
+    ij_pairs = [(i, j) for i in range(n) for j in range(i+1, n)]
+    n_pairs = min(2*n, len(ij_pairs)) # O(2n)
+    # n_pairs = len(ij_pairs) # O(n^2)
+    calc_pairs = np.random.choice(len(ij_pairs), size=n_pairs, replace=False)
+
+    for idx in calc_pairs:
+        i, j = ij_pairs[idx]
+        similarity = calc_multi_channel_signal_similarity(ref_samples[i], ref_samples[j], method=method, **kwargs)
+        ref_similarities.append(similarity)
+    return np.array(ref_similarities)
