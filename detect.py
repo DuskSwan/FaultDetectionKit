@@ -85,50 +85,17 @@ def check():
     norm_similarities = calc_ref_similarity(norm_samples, method=sim_method)
     logger.info(f"Normal samples similarity refence value: {np.mean(norm_similarities):.2f}")
 
-    unknown_samples, labels = build_dataset(test_sample_n, window_size, is_train=False)
+    unknown_samples, labels = build_dataset(test_sample_n, window_size, is_train=False, is_random=True)
     
     pred_right_cnt = 0
     for i, sample in enumerate(unknown_samples):
         is_abnormal = check_sample(norm_samples, sample, sim_method, norm_similarities, outlier_method, sample_abnormal_threshold)
         true_is_abnormal = True if labels[i] == 1 else False
-        logger.info(f"Sample {i}: true label:{true_is_abnormal}, pred label:{is_abnormal}.")
+        logger.info(f"Sample {i}: predict right? {is_abnormal==true_is_abnormal}.")
         pred_right_cnt += 1 if is_abnormal == true_is_abnormal else 0
     pred_right_rate = pred_right_cnt / len(unknown_samples)
     logger.info(f"Pred right rate: {pred_right_rate:.2f}")
-
-def main():
-    set_random_seed(cfg.SEED)
-    initiate_cfg(cfg, merge_file='')
-
-    ref_sample_n = cfg.DETECT.REF_SAMPLE
-    test_sample_n = cfg.TEST.SAMPLE_N
-    window_size = cfg.PREPROCESS.WINDOW_SIZE
-    similarity_method = cfg.DETECT.SIMILARITY_METHOD
-
-    norm_signals, _ = build_dataset(ref_sample_n, window_size, is_train=True)
-
-    unknown_signals, lables = build_dataset(test_sample_n, window_size, is_train=False)
-    normal_idx = np.where(lables == 0)[0][0]
-    abnormal_idx = np.where(lables == 1)[0][0]
-    normal_signal = unknown_signals[normal_idx]
-    abnormal_signal = unknown_signals[abnormal_idx]
-
-    normal_similarity = []
-    for ref_signal in norm_signals:
-        similarity = calc_multi_channel_signal_similarity(ref_signal, normal_signal, method=similarity_method)
-        normal_similarity.append(np.mean(similarity))
-    logger.info(f"Ref similarity: {normal_similarity}")
-    
-    abnormal_similarity = []
-    for ref_signal in norm_signals:
-        similarity = calc_multi_channel_signal_similarity(ref_signal, abnormal_signal, method=similarity_method)
-        abnormal_similarity.append(np.mean(similarity))
-
-    for i,sim in enumerate(abnormal_similarity):
-        is_outlier_result = is_outlier(ref_array=normal_similarity, value=sim, method='zscore')
-        logger.info(f"{i}. similarity = {sim:.2f}. Is outlier? {is_outlier_result}")
     
 
 if __name__ == "__main__":
-    # main()
     check()

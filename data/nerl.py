@@ -73,13 +73,16 @@ def get_samples_from_mat(file_path, sample_n, window_size) -> tuple[np.ndarray, 
 
     return np.array(X), np.array(y)
 
-def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.ndarray]:
+
+def build_dataset(sample_n, window_size, is_train=True, is_random=False) -> tuple[np.ndarray, np.ndarray]:
     """
     Build dataset for NREL data
     Args:
         sample_n (int): Number of samples to generate.
         window_size (int): Size of the window for each sample.
         is_train (bool): Whether to use training data or not. If True, use only healthy data.
+        is_random (bool): Whether to use random sampling or not. If True, sampling process is random.
+        这两个参数构成三种情况：训练时使用随机采样、验证时使用顺序采样、验证时使用随机采样
     Returns:
         tuple: Tuple containing the samples and labels.
     """
@@ -95,7 +98,8 @@ def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.
         mat_paths += list(data_dir.glob("*.mat"))
     files_n = len(mat_paths)
 
-    # assert files_n < sample_n, f"Not enough files in {data_dirs} to get {sample_n} samples."
+    if is_random:
+        np.random.shuffle(mat_paths)
 
     sample_per_file = sample_n // files_n
     sample_per_file_list = [sample_per_file] * files_n
@@ -110,7 +114,7 @@ def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.
         per_file_samples = sample_per_file_list[i]
         df = load_signal_from_mat(mat_path)
 
-        if is_train:
+        if is_train or is_random:
             start_index = np.random.choice(range(len(df) - window_size), per_file_samples, replace=False)
         else:
             start_index = np.arange(len(df) - window_size, step=window_size)[:per_file_samples]
@@ -130,7 +134,7 @@ def build_dataset(sample_n, window_size, is_train=True) -> tuple[np.ndarray, np.
     return X, y
 
 
-def build_dataloader(sample_n, window_size, batch_size, is_train=True) -> DataLoader:
+def build_dataloader(sample_n, window_size, batch_size, is_train=True, is_random=False) -> DataLoader:
     """
     Build dataloader for NREL data
     Args:
@@ -141,7 +145,7 @@ def build_dataloader(sample_n, window_size, batch_size, is_train=True) -> DataLo
     Returns:
         DataLoader: Dataloader for the dataset.
     """
-    X,y = build_dataset(sample_n, window_size, is_train)
+    X,y = build_dataset(sample_n, window_size, is_train, is_random)
     data_loader = DataLoader(
         dataset=list(zip(X, y)),
         batch_size=batch_size,

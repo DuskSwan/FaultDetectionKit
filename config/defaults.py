@@ -48,12 +48,10 @@ _C.TRAIN.BATCH_SIZE = 32
 # TEST/VALIDATION
 # ---------------------------------------------------------------------------- #
 _C.TEST = CN()
-_C.TEST.SAMPLE_N = 20
+_C.TEST.SAMPLE_N = 10
 
 # -----------------------------------------------------------------------------
 # INFERENCE
 # -----------------------------------------------------------------------------
 _C.INFERENCE = CN()
 _C.INFERENCE.BATCH_SIZE = 1
-_C.INFERENCE.MODEL_PATH = r'output\model.pth'
-_C.INFERENCE.DATA_PATH = r''
