@@ -1,9 +1,18 @@
+'''
+本文件采取对原始信号直接比较相似度的方法来进行异常检测
+流程为
+1. 读取参考信号片段，计算参考信号片段之间的相似度分布
+2. 读取待检测信号片段，计算待检测信号片段与参考信号片段之间的相似度
+3. 判断待检测信号片段与参考信号的相似度是否为离群值
+'''
+
 import numpy as np
 from pathlib import Path
 from loguru import logger
 
 from config import cfg
-from data import build_dataloader, build_dataset, get_samples_from_signal
+from data import build_dataset, get_samples_from_signal
+from data.nerl import load_signal_from_mat
 from utils import set_random_seed, initiate_cfg
 from utils.similarity import calc_multi_channel_signal_similarity
 from utils.outlier import is_outlier
@@ -54,6 +63,7 @@ def check_sample(ref_samples: np.ndarray,
 
 def check_signal(signal: np.ndarray, 
                  window_size: int,
+                 sample_n: int,
                  ref_signals: np.ndarray, 
                  sim_method: str,
                  normal_similarites: np.ndarray, 
@@ -65,7 +75,7 @@ def check_signal(signal: np.ndarray,
     '''
     检查信号是否为离群值
     '''
-    samples = get_samples_from_signal(signal, window_size=window_size)
+    samples = get_samples_from_signal(signal, sample_n=sample_n, window_size=window_size)
     abnormal_cnt = 0
     for sample in samples:
         is_abnormal = check_sample(ref_signals, sample, sim_method, normal_similarites, outlier_method, sample_abnormal_threshold, **kwargs)
@@ -97,18 +107,25 @@ def check():
     norm_similarities = calc_ref_similarity(norm_samples, method=sim_method, dtw_radius=dtw_radius)
     logger.info(f"Normal samples similarity refence value: {np.mean(norm_similarities):.2f}")
 
-    logger.info("Loading test samples...")
-    unknown_samples, labels = build_dataset(test_sample_n, window_size, is_train=False, is_random=True)
+    logger.info("Loading test signal...")
+    # test_signal_path = Path(r'datasets\NREL\Healthy\H1.mat')
+    test_signal_path = Path(r'datasets\NREL\Damaged\D1.mat')
+    test_signal = load_signal_from_mat(test_signal_path).values
+    res = check_signal(test_signal, window_size, test_sample_n,norm_samples, sim_method, norm_similarities, outlier_method, sample_abnormal_threshold, signal_abnormal_threshold, dtw_radius=dtw_radius)
+    logger.info(f"Test signal is abnormal? {res}")
+
+    # logger.info("Loading test samples...")
+    # unknown_samples, labels = build_dataset(test_sample_n, window_size, is_train=False, is_random=True)
     
-    pred_right_cnt = 0
-    for i, sample in enumerate(unknown_samples):
-        logger.info(f"Checking sample {i}...")
-        is_abnormal = check_sample(norm_samples, sample, sim_method, norm_similarities, outlier_method, sample_abnormal_threshold, dtw_radius=dtw_radius)
-        true_is_abnormal = True if labels[i] == 1 else False
-        logger.info(f"Sample {i}: predict right? {is_abnormal==true_is_abnormal}.")
-        pred_right_cnt += 1 if is_abnormal == true_is_abnormal else 0
-    pred_right_rate = pred_right_cnt / len(unknown_samples)
-    logger.info(f"Pred right rate: {pred_right_rate:.2f}")
+    # pred_right_cnt = 0
+    # for i, sample in enumerate(unknown_samples):
+    #     logger.info(f"Checking sample {i}...")
+    #     is_abnormal = check_sample(norm_samples, sample, sim_method, norm_similarities, outlier_method, sample_abnormal_threshold, dtw_radius=dtw_radius)
+    #     true_is_abnormal = True if labels[i] == 1 else False
+    #     logger.info(f"Sample {i}: predict right? {is_abnormal==true_is_abnormal}.")
+    #     pred_right_cnt += 1 if is_abnormal == true_is_abnormal else 0
+    # pred_right_rate = pred_right_cnt / len(unknown_samples)
+    # logger.info(f"Pred right rate: {pred_right_rate:.2f}")
     
 
 if __name__ == "__main__":

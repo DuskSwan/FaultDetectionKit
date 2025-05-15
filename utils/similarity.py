@@ -179,7 +179,7 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray,
         function = dtw_distance_fast
         use_kwargs = True
     else:
-        raise ValueError("不支持的方法。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson' 或 'dtw'。")
+        raise ValueError(f"不支持方法{method}。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson' 或 'dtw'。")
     
     if len(signal1.shape) == 1:
         return function(signal1, signal2, **kwargs) if use_kwargs else function(signal1, signal2)
