@@ -1,12 +1,13 @@
 import numpy as np
+from typing import Optional
 
 def sliding_window(
     signal: np.ndarray,
     win_size: int,
-    stride: int = None,
-    max_samples: int = None,
+    stride: Optional[int] = None,
+    max_samples: Optional[int] = None,
     shuffle: bool = False,
-    seed: int = None
+    seed: Optional[int] = None
 ) -> np.ndarray:
     """
     从长信号中提取滑动窗口样本。

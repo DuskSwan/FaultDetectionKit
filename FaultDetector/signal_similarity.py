@@ -8,6 +8,7 @@
 
 import numpy as np
 from loguru import logger
+from typing import Optional
 
 from .data import sliding_window
 from .utils.similarity import calc_multi_channel_signal_similarity
@@ -37,7 +38,7 @@ def calc_ref_similarity(ref_samples: np.ndarray, method: str, **kwargs) -> np.nd
 class SignalSimilarityDetector:
     def __init__(self, 
                  window_size: int = 1024,
-                 window_stride: int = None,
+                 window_stride: Optional[int] = None,
                  ref_sample_n: int = 5,
                  pred_sample_n: int = 5,
                  similarity_method: str = 'dtw',
@@ -124,13 +125,13 @@ class SignalSimilarityDetector:
         logger.debug(f"Abnormal rate: {abnormal_rate:.2f}")
         return abnormal_rate > self.signal_threshold
 
-    def predict(self, signals: np.ndarray) -> list[bool]:
+    def predict(self, signals: np.ndarray) -> bool | list[bool]:
         """
         检测信号是否为异常信号
         参数:
             signals (np.ndarray): 待检测信号，形状为 (n, m, c)或者(m, c)，其中 n 是信号数量，m 是每个信号的长度，c 是通道数。
         返回:
-            list[bool]: 是否为异常信号
+            bool | list[bool]: 是否为异常信号. 如果输入信号为多通道信号，则返回一个布尔值列表，表示每个信号是否为异常信号。
         """
         assert self.ref_samples.size > 0 and self.ref_similarities.size > 0, "请先调用 fit 方法计算参考信号相似度分布"
         
