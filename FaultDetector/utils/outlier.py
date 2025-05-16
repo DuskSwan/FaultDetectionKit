@@ -16,7 +16,7 @@ def is_outlier_zscore(ref_array: np.ndarray, value: float, threshold: float = 3.
     if std == 0:
         return False
     z_score = abs((value - mean) / std)
-    return z_score > threshold
+    return bool(z_score > threshold)
 
 def is_outlier_iqr(ref_array: np.ndarray, value: float, multiplier: float = 1.5) -> bool:
     """

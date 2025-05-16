@@ -4,11 +4,19 @@ import numpy as np
 from loguru import logger
 from typing import Optional, List
 
+import torch
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+
 from .data import sliding_window
+
+from .DL.modeling import TimeSeriesConvAE
+from .DL.lightning import train_model, predict_model
+
 from .utils.similarity import calc_multi_channel_signal_similarity, calculate_pairwise_similarity
 from .utils.outlier import is_outlier
 
-class SimilarityDetector:
+class MeasureDetector:
     '''
     该类是一切基于信号相似度的检测器的基类
     该类方法的主要思路是计算参考信号片段之间的相似度分布，并判断待检测信号片段与参考信号片段之间的相似度是否为离群值
@@ -109,6 +117,7 @@ class SimilarityDetector:
         '''
         assert self.ref_samples.size > 0 and self.ref_measure.size > 0, "请先调用 fit 方法计算参考信号相似度分布"
         if len(signals.shape) == 2:
+            logger.debug("Predicting signal 1/1")
             return self.predict_one_signal(signals)
         elif len(signals.shape) == 3:
             results = []
@@ -120,7 +129,7 @@ class SimilarityDetector:
         else:
             raise ValueError("输入信号的形状不正确")
 
-class RawSignalSimilarityDetector(SimilarityDetector):
+class RawSignalSimilarityDetector(MeasureDetector):
     '''
     本模块采取对原始信号直接比较相似度的方法来进行异常检测
 
@@ -134,13 +143,11 @@ class RawSignalSimilarityDetector(SimilarityDetector):
     def __init__(self, 
                  similarity_method: str = 'dtw',
                  dtw_radius: int = 5,
-                 sample_threshold: float = 0.75,
                  **kwargs,
                 ):
         # father class parameters
         super().__init__(**kwargs)
         # necessary parameters
-        # self.sample_threshold = sample_threshold
         self.similarity_method = similarity_method
         self.dtw_radius = dtw_radius
 
@@ -166,66 +173,91 @@ class RawSignalSimilarityDetector(SimilarityDetector):
         
         return unknown_measures
 
-class ModelingDetector(SimilarityDetector):
+class AEDetector(MeasureDetector):
     '''
-    本模块采取对原始信号进行建模的方式来实现故障检测，对正常信号建立AE或LSTM模型，其在正常信号上的预测误差小，而在故障信号上的预测误差大。通过对正常信号进行建模，来实现对故障信号的检测。
+    本模块采取对原始信号进行建模的方式来实现故障检测，对正常信号建立AE模型，其在正常信号上的重建误差小
     故障信号上的误差相对于正常信号上的误差为离群值，利用离群值检测算法来判断待检测信号片段是否为故障信号。
 
     训练仅需正常信号
 
-    流程为（以AE为例）
+    流程为
     1. 读取参考信号片段，训练模型
     2. 读取待检测信号片段，进行预测，计算预测误差
     3. 检查预测误差是否为离群值
     '''
-    def __init__(self, 
-                 window_size: int = 1024,
-                 window_stride: Optional[int] = None,
-                 ref_sample_n: int = 5,
-                 pred_sample_n: int = 5,
-                 model_type: str = 'AE',
-                 outlier_method: str = 'zscore',
-                 sample_threshold: float = 0.75,
-                 signal_threshold: float = 0.75,
+    def __init__(self,
+                 device: str = 'cpu',
+                 latent_dim: int = 32,
+                 batch_size: int = 32,
+                 max_epochs: int = 10,
+                 **kwargs,
                 ):
+        # father class parameters
+        super().__init__(**kwargs)
         # necessary parameters
-        self.window_size = window_size
-        self.ref_sample_n = ref_sample_n
-        self.pred_sample_n = pred_sample_n
-        self.model_type = model_type
-        self.outlier_method = outlier_method
-        self.sample_threshold = sample_threshold
-        self.signal_threshold = signal_threshold
-        # optional parameters
-        self.window_stride = window_stride
+        self.device = device
+        self.latent_dim = latent_dim
+        self.batch_size = batch_size
+        self.max_epochs = max_epochs
+        self.lr = 1e-3
+        self.loss_fn = F.mse_loss
+        self.optimizer = torch.optim.AdamW
         # parameters to be set in fit
-        self.ref_samples = np.ndarray([])
         self.model = None
-        self.ref_loss = np.ndarray([])
     
     def fit(self, ref_signals: np.ndarray):
-        logger.debug("Calculating reference signal similarity...")
-        samples = np.array([])
-
-        assert self.ref_sample_n > 0, "参考样本数量必须大于0"
-        ref_signal_n = len(ref_signals)
-        sample_per_signal = self.ref_sample_n // ref_signal_n
-        sample_per_signal_list = [sample_per_signal] * ref_signal_n
-        sample_per_signal_list[:self.ref_sample_n % ref_signal_n] = [sample_per_signal + 1] * (self.ref_sample_n % ref_signal_n)
-
-        for i,signal in enumerate(ref_signals):
-            if sample_per_signal_list[i] > 0:
-                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
-                samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
-        
-        # self.ref_samples = np.random.choice(samples, size=min(self.ref_sample_n, len(samples)), replace=False)
-        indecies = np.random.choice(len(samples), size=min(self.ref_sample_n, len(samples)), replace=False)
-        self.ref_samples = samples[indecies]
+        self._build_ref_samples(ref_signals)
 
         self.model = self._build_model()
-        # self.model.fit(self.ref_samples)
-        # self.ref_loss = self.model.predict(self.ref_samples)
-        # logger.debug(f"Reference loss: {np.mean(self.ref_loss)}")
+        tensor_ref_samples = torch.from_numpy(self.ref_samples).float()
+        dataset = TensorDataset(tensor_ref_samples)
+        train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+
+        self.model = train_model(
+            model=self.model,
+            train_dataloader=train_loader,
+            loss_fn=self.loss_fn,
+            optimizer_class=self.optimizer,
+            lr=self.lr,
+            max_epochs=self.max_epochs,
+            device=self.device,  # 或 "cpu"
+        )
+
+        self.model.eval()
+        preds = predict_model(
+            model=self.model,
+            dataloader=train_loader,
+            device=self.device,  # 或 "cpu"
+        )
+        losses = []
+        for pred in preds:
+            losses.append( self.loss_fn(pred, tensor_ref_samples).item() )
+        self.ref_measure = np.array(losses)
+        logger.debug(f"Training mean loss: {np.mean(losses):.4f}")
+        logger.debug(f"Reference signal measure shape: {self.ref_measure.shape}")
     
     def _build_model(self):
-        pass
+        sample = self.ref_samples[0]
+        seq_len, n_channels = sample.shape
+        model = TimeSeriesConvAE(
+            seq_len=seq_len,
+            n_channels=n_channels,
+            latent_dim=self.latent_dim
+        )
+        return model
+
+    def _calc_unknown_measures(self, samples: np.ndarray) -> List[float]:
+        '''
+        计算待检测信号片段的重建误差
+        '''
+        assert self.model is not None, "请先调用 fit 方法训练模型"
+        self.model.eval()
+        unknown_measures = []
+        for sample in samples:
+            sample_tensor = torch.tensor(sample, dtype=torch.float32).unsqueeze(0)
+            logger.debug(f"Sample shape: {sample_tensor.shape}")
+            recon = self.model(sample_tensor)
+            loss = self.loss_fn(recon, sample_tensor)
+            unknown_measures.append(loss.item())
+        
+        return unknown_measures

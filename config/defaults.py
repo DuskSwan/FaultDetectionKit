@@ -5,7 +5,7 @@ from yacs.config import CfgNode as CN
 # -----------------------------------------------------------------------------
 
 _C = CN()
-_C.DEVICE = "cuda"
+_C.DEVICE = "cpu"
 _C.SEED = 0
 
 # -----------------------------------------------------------------------------
@@ -16,11 +16,10 @@ _C.DETECT.REF_SAMPLE = 5 # Number of reference samples
 _C.DETECT.SIMILARITY_METHOD = 'dtw'
 _C.DETECT.DTW_RADIUS = 200
 _C.DETECT.OUTLIER_METHOD = 'zscore'
-_C.DETECT.SAMPLE_THRESHOLD = 0.75
 _C.DETECT.SIGNAL_THRESHOLD = 0.75
 
 # -----------------------------------------------------------------------------
-# MODEL
+# AE MODEL
 # -----------------------------------------------------------------------------
 
 _C.MODEL = CN()
@@ -44,6 +43,7 @@ _C.DATALOADER.NUM_WORKERS = 0
 _C.TRAIN = CN()
 _C.TRAIN.SAMPLE_N = 1000
 _C.TRAIN.BATCH_SIZE = 32
+_C.TRAIN.MAX_EPOCHS = 10
 
 # ---------------------------------------------------------------------------- #
 # TEST/VALIDATION

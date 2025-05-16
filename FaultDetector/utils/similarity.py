@@ -93,8 +93,8 @@ def pearson_correlation_coefficient(signal1: np.ndarray, signal2: np.ndarray) ->
     if len(signal1) < 2: # 皮尔逊相关系数至少需要两个点
         return np.nan # 或者根据需要返回0.0或抛出错误
 
-    corr, _ = pearsonr(signal1, signal2)
-    return corr
+    corr, p = pearsonr(signal1, signal2)
+    return float(corr)
 
 def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """
@@ -193,7 +193,7 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray,
         similarities.append(similarity)
     
     if weights == 'auto':
-        return np.mean(similarities)
+        return float(np.mean(similarities))
     elif isinstance(weights, (list, np.ndarray)):
         if len(weights) != signal1.shape[1]:
             raise ValueError(f"权重的长度 {len(weights)} 与信号的通道数 {signal1.shape[1]} 不匹配。")
