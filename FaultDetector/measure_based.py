@@ -28,7 +28,6 @@ class MeasureDetector:
         pred_sample_n: int = 5,
         outlier_method: str = 'zscore',
         signal_threshold: float = 0.75,
-        **kwargs
     ):
         # necessary parameters
         self.window_size = window_size
@@ -189,11 +188,14 @@ class AEDetector(MeasureDetector):
     '''
     def __init__(self,
                  device: str = 'cpu',
-                 latent_dim: int = 32,
                  batch_size: int = 32,
                  max_epochs: int = 10,
+                 lr: float = 1e-3,
                  train_sample_n: int = 1000,
-                 loss_fn: Callable = F.mse_loss,
+                 loss_name: str = 'mse',
+                 num_workers: int = 0,
+                 optimizer: str = 'adam',
+                 latent_dim: int = 32,
                  **kwargs,
                 ):
         # father class parameters
@@ -204,11 +206,11 @@ class AEDetector(MeasureDetector):
         self.batch_size = batch_size
         self.max_epochs = max_epochs
         self.train_sample_n = train_sample_n
-        self.lr = 1e-3
-        self.loss_fn = loss_fn
-        self.optimizer = torch.optim.AdamW
+        self.lr = lr
+        self.loss_name = loss_name
+        self.optimizer = optimizer
         # optional parameters
-        self.num_workers = kwargs.get('num_workers', 0)
+        self.num_workers = num_workers
         # parameters to be set in fit
         self.model = None
         self.train_loader = None
@@ -259,8 +261,8 @@ class AEDetector(MeasureDetector):
         self.model = train_model(
             model=self.model,
             train_dataloader=self.train_loader,
-            loss_fn=self.loss_fn,
-            optimizer_class=self.optimizer,
+            loss_name=self.loss_name,
+            optimizer=self.optimizer,
             lr=self.lr,
             max_epochs=self.max_epochs,
             device=self.device,  # 或 "cpu"
@@ -270,7 +272,7 @@ class AEDetector(MeasureDetector):
         preds, losses = predict_model(
             model=self.model,
             batch=ref_samples_batch,
-            loss_fn=self.loss_fn,
+            loss_name=self.loss_name,
             device=self.device,
         )
         self.ref_measure = losses # (n,)
@@ -297,7 +299,7 @@ class AEDetector(MeasureDetector):
         preds, losses = predict_model(
             model=self.model,
             batch=unknown_samples_batch,
-            loss_fn=self.loss_fn,
+            loss_name=self.loss_name,
             device=self.device,
         )
         unknown_measures = [float(loss) for loss in losses] # (n,)

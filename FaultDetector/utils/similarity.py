@@ -93,8 +93,8 @@ def pearson_correlation_coefficient(signal1: np.ndarray, signal2: np.ndarray) ->
     if len(signal1) < 2: # 皮尔逊相关系数至少需要两个点
         return np.nan # 或者根据需要返回0.0或抛出错误
 
-    corr, _ = pearsonr(signal1, signal2)
-    return float(corr)
+    pearson_res = pearsonr(signal1, signal2)
+    return float(pearson_res.correlation)
 
 def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """

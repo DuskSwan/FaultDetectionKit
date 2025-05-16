@@ -66,8 +66,8 @@ class GeneralLightningModule(L.LightningModule):
 def train_model(
     model,
     train_dataloader,
-    loss_fn,
-    optimizer_class=torch.optim.AdamW,
+    loss_name: str,
+    optimizer: str,
     lr=1e-3,
     max_epochs=20,
     device="cpu",
@@ -91,6 +91,8 @@ def train_model(
         extra_args: 自定义 batch 处理函数等额外组件，例如:
                     {"preprocess_batch": fn}，或者用于 Diffusion 的组件
     """
+    optimizer_class = optimizer_resolve(optimizer)
+    loss_fn = loss_fn_resolve(loss_name)
     lightning_model = GeneralLightningModule(
         model, loss_fn, optimizer_class, lr, extra_args
     )
@@ -105,13 +107,6 @@ def train_model(
         mode="min",
     )
 
-    # trainer = L.Trainer(
-    #     max_epochs=max_epochs,
-    #     accelerator=device,
-    #     logger=csvlogger,
-    #     callbacks=[checkpoint_callback],
-    # )
-    logger.debug(f"Training on {device} for {max_epochs} epochs.")
     trainer = L.Trainer(
         max_epochs=max_epochs,
         accelerator=device,
@@ -133,7 +128,7 @@ def train_model(
 def predict_model(
     model: torch.nn.Module,
     batch: Tuple[torch.Tensor, torch.Tensor] | torch.Tensor,
-    loss_fn: Callable,
+    loss_name: str,
     device: str = "cpu",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -142,7 +137,7 @@ def predict_model(
     参数:
         model: 训练好的模型
         batch: 输入数据，可能是 (x, y) 或 x
-        loss_fn: 损失函数
+        loss_name: 损失函数名称，例如 "mse" 或 "cross_entropy"
         device: 推理设备（"cpu" | "cuda"）
 
     返回:
@@ -163,6 +158,7 @@ def predict_model(
     x = x.to(device) # (batch_size, seq_len, n_channels)
     y = y.to(device)
     preds = model(x) # (batch_size, seq_len, n_channels)
+    loss_fn = loss_fn_resolve(loss_name)
     loss_elementwise = loss_fn(preds, y, reduction='none') # (batch_size,)
         # 这里的损失函数需要支持 reduction='none'，也即不合并，返回每个点位的损失
     losses = loss_elementwise.mean(dim=(1, 2))  # 将损失在通道维度上求平均，得到每个样本的损失值
@@ -176,3 +172,39 @@ def predict_model(
         losses = losses.numpy()
     logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
     return preds, losses
+
+def optimizer_resolve(optimizer_class: str) -> Callable:
+    """
+    解析优化器类并返回实例化的优化器。
+
+    参数:
+        optimizer_class: 优化器类名称，例如 "AdamW" 或 "SGD"
+
+    返回:
+        实例化的优化器
+    """
+    if optimizer_class == "adamw":
+        return torch.optim.AdamW
+    if optimizer_class == "sgd":
+        return torch.optim.SGD
+    if optimizer_class == "adam":
+        return torch.optim.Adam
+    
+    raise ValueError(f"Unsupported optimizer class: {optimizer_class}. Supported classes are 'adamw', 'sgd', 'adam'.")
+
+def loss_fn_resolve(loss_fn: str) -> Callable:
+    """
+    解析损失函数名称并返回对应的函数。
+
+    参数:
+        loss_fn: 损失函数名称，例如 "mse" 或 "cross_entropy"
+
+    返回:
+        对应的损失函数
+    """
+    if loss_fn == "mse":
+        return F.mse_loss
+    if loss_fn == "mae":
+        return F.l1_loss
+    
+    raise ValueError(f"Unsupported loss function: {loss_fn}. Supported functions are 'mse', 'mae'.")

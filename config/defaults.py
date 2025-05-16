@@ -23,7 +23,7 @@ _C.DETECT.SIGNAL_THRESHOLD = 0.75
 # -----------------------------------------------------------------------------
 
 _C.MODEL = CN()
-_C.MODEL.NUM_CLASSES = 10
+_C.MODEL.AE_LATENT_DIM = 64
 
 # -----------------------------------------------------------------------------
 # PREPROCESSING
@@ -44,6 +44,9 @@ _C.TRAIN = CN()
 _C.TRAIN.SAMPLE_N = 1000
 _C.TRAIN.BATCH_SIZE = 32
 _C.TRAIN.MAX_EPOCHS = 5
+_C.TRAIN.LR = 1e-3
+_C.TRAIN.LOSS_FN = 'mse'
+_C.TRAIN.OPTIMIZER = 'adamw'
 
 # -----------------------------------------------------------------------------
 # TEST/VALIDATION

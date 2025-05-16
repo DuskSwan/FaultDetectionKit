@@ -70,28 +70,22 @@ def test_raw_signal_similarity_detector():
 def test_AE_detector():
     set_random_seed(cfg.SEED)
 
-    ref_sample_n = cfg.DETECT.REF_SAMPLE
-    test_sample_n = cfg.TEST.SAMPLE_N
-    window_size = cfg.PREPROCESS.WINDOW_SIZE
-    outlier_method = cfg.DETECT.OUTLIER_METHOD
-    signal_abnormal_threshold = cfg.DETECT.SIGNAL_THRESHOLD
-
-    loss_fn = F.mse_loss
-
     # Call the detector
     detector = AEDetector(
         device=cfg.DEVICE,
-        ref_sample_n=ref_sample_n,
-        pred_sample_n=test_sample_n,
-        window_size=window_size,
-        outlier_method=outlier_method,
-        signal_threshold=signal_abnormal_threshold,
-        latent_dim=64,
+        ref_sample_n=cfg.DETECT.REF_SAMPLE,
+        pred_sample_n=cfg.TEST.SAMPLE_N,
+        window_size=cfg.PREPROCESS.WINDOW_SIZE,
+        outlier_method=cfg.DETECT.OUTLIER_METHOD,
+        signal_threshold=cfg.DETECT.SIGNAL_THRESHOLD,
+        latent_dim=cfg.MODEL.AE_LATENT_DIM,
+        optimizer=cfg.TRAIN.OPTIMIZER,
         batch_size=cfg.TRAIN.BATCH_SIZE,
         max_epochs=cfg.TRAIN.MAX_EPOCHS,
         num_workers=cfg.DATALOADER.NUM_WORKERS,
         train_sample_n=cfg.TRAIN.SAMPLE_N,
-        loss_fn=loss_fn,
+        loss_name=cfg.TRAIN.LOSS_FN,
+        lr=cfg.TRAIN.LR,
     )
 
     # Load reference signals
