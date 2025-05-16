@@ -197,6 +197,7 @@ class AEDetector(MeasureDetector):
                  num_workers: int = 0,
                  optimizer: str = 'adam',
                  latent_dim: int = 32,
+                 hidden_dims: List[int] = [16, 32,],
                  **kwargs,
                 ):
         # father class parameters
@@ -212,6 +213,7 @@ class AEDetector(MeasureDetector):
         self.optimizer = optimizer
         # optional parameters
         self.num_workers = num_workers
+        self.hidden_dims = hidden_dims
         # parameters to be set in fit
         self.model = None
         self.train_loader = None
@@ -223,7 +225,7 @@ class AEDetector(MeasureDetector):
         '''
         从参考信号中构建训练样本，注意这不同于构造参考样本
         '''
-        logger.debug("Building train loader...")
+        # logger.debug("Building train loader...")
         assert self.train_sample_n > 0, "训练用样本数量必须大于0"
 
         # 计算每个参考信号片段的样本数量
@@ -231,7 +233,7 @@ class AEDetector(MeasureDetector):
         sample_per_signal = self.train_sample_n // ref_signal_n
         sample_per_signal_list = [sample_per_signal] * ref_signal_n
         sample_per_signal_list[:self.train_sample_n % ref_signal_n] = [sample_per_signal + 1] * (self.train_sample_n % ref_signal_n)
-        logger.debug(f"Sample per signal: {sample_per_signal_list}")
+        # logger.debug(f"Sample per signal: {sample_per_signal_list}")
 
         # 读取参考信号片段，构建训练样本
         samples = np.array([])
@@ -243,7 +245,6 @@ class AEDetector(MeasureDetector):
         # 截取特定数量的样本
         indecies = np.random.choice(len(samples), size=min(self.train_sample_n, len(samples)), replace=False)
         self.train_samples = samples[indecies]
-        logger.debug(f"Get train samples of {self.ref_samples.shape}")
 
         # 构建数据加载器
         tensor_train_samples = torch.from_numpy(self.train_samples).float() # (n, seq_len, channels)
@@ -251,7 +252,7 @@ class AEDetector(MeasureDetector):
         persistent_workers = self.num_workers > 0
         self.train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True,
                                        num_workers=self.num_workers, persistent_workers=persistent_workers)
-        logger.debug(f"Train loader size: {len(self.train_loader)}")
+        # logger.debug(f"Train loader size: {len(self.train_loader)}")
         logger.debug(f"Train samples shape: {self.train_samples.shape}")
 
     def fit(self, ref_signals: np.ndarray):
@@ -286,7 +287,8 @@ class AEDetector(MeasureDetector):
         model = TimeSeriesConvAE(
             seq_len=seq_len,
             n_channels=n_channels,
-            latent_dim=self.latent_dim
+            latent_dim=self.latent_dim,
+            hidden_dims=self.hidden_dims,
         )
         return model
 

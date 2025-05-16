@@ -85,6 +85,7 @@ def test_AE_detector():
         train_sample_n=cfg.TRAIN.SAMPLE_N,
         loss_name=cfg.TRAIN.LOSS_FN,
         lr=cfg.TRAIN.LR,
+        hidden_dims=[16,32,64],
     )
 
     # Load reference signals
@@ -174,6 +175,6 @@ def detector_campare():
 if __name__ == "__main__":
     # test_dataloader()
     # test_raw_signal_similarity_detector()
-    # test_AE_detector()
-    detector_campare()
+    test_AE_detector()
+    # detector_campare()
 

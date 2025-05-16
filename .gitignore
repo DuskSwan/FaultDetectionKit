@@ -11,7 +11,7 @@ __pycache__
 *__pycache__
 log/
 output/
-datasets/
+datasets/NREL/
 
 # qt GUI file
 build
