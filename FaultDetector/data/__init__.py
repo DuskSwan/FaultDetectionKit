@@ -47,6 +47,6 @@ def sliding_window(
     # logger.debug(f"Going to extract {len(starts)} windows from signal of length {length} with window size {win_size} and stride {stride}")
     windows = [signal[start:start + win_size] for start in starts]
     windows = np.stack(windows)
-    logger.debug(f"Extracted samples of shape: {windows.shape}")
+    # logger.debug(f"Extracted samples of shape: {windows.shape}")
 
     return windows

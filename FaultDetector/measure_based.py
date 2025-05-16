@@ -2,7 +2,7 @@
 
 import numpy as np
 from loguru import logger
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 import torch
 import torch.nn.functional as F
@@ -28,6 +28,7 @@ class MeasureDetector:
         pred_sample_n: int = 5,
         outlier_method: str = 'zscore',
         signal_threshold: float = 0.75,
+        **kwargs
     ):
         # necessary parameters
         self.window_size = window_size
@@ -76,6 +77,7 @@ class MeasureDetector:
         检查样本相对于参考样本是否为离群值
         '''
         unknown_measures = self._calc_unknown_measures(samples)
+        logger.debug(f"Unknown measures: {np.mean(unknown_measures):.2f}")
         dectect_result = self._is_outlier(unknown_measures)
         return dectect_result
     
@@ -104,7 +106,7 @@ class MeasureDetector:
         outlier_list = self._check_samples(samples)
         outlier_rate = sum(outlier_list) / len(samples)
 
-        # logger.debug(f"Outlier rate: {outlier_rate:.2f}")
+        logger.debug(f"Outlier rate: {outlier_rate:.2f}")
         return outlier_rate > self.signal_threshold
 
     def predict(self, signals: np.ndarray) -> bool | list[bool]:
@@ -190,6 +192,8 @@ class AEDetector(MeasureDetector):
                  latent_dim: int = 32,
                  batch_size: int = 32,
                  max_epochs: int = 10,
+                 train_sample_n: int = 1000,
+                 loss_fn: Callable = F.mse_loss,
                  **kwargs,
                 ):
         # father class parameters
@@ -199,23 +203,62 @@ class AEDetector(MeasureDetector):
         self.latent_dim = latent_dim
         self.batch_size = batch_size
         self.max_epochs = max_epochs
+        self.train_sample_n = train_sample_n
         self.lr = 1e-3
-        self.loss_fn = F.mse_loss
+        self.loss_fn = loss_fn
         self.optimizer = torch.optim.AdamW
+        # optional parameters
+        self.num_workers = kwargs.get('num_workers', 0)
         # parameters to be set in fit
         self.model = None
-    
+        self.train_loader = None
+        self.train_samples = np.ndarray([])
+        self.ref_measure = np.ndarray([])
+        self.ref_samples = np.ndarray([])
+        
+    def _build_train_loader(self, ref_signals: np.ndarray):
+        '''
+        从参考信号中构建训练样本，注意这不同于构造参考样本
+        '''
+        logger.debug("Building train loader...")
+        assert self.train_sample_n > 0, "训练用样本数量必须大于0"
+
+        # 计算每个参考信号片段的样本数量
+        ref_signal_n = len(ref_signals)
+        sample_per_signal = self.train_sample_n // ref_signal_n
+        sample_per_signal_list = [sample_per_signal] * ref_signal_n
+        sample_per_signal_list[:self.train_sample_n % ref_signal_n] = [sample_per_signal + 1] * (self.train_sample_n % ref_signal_n)
+        logger.debug(f"Sample per signal: {sample_per_signal_list}")
+
+        # 读取参考信号片段，构建训练样本
+        samples = np.array([])
+        for i,signal in enumerate(ref_signals):
+            if sample_per_signal_list[i] > 0:
+                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
+                samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
+        
+        # 截取特定数量的样本
+        indecies = np.random.choice(len(samples), size=min(self.train_sample_n, len(samples)), replace=False)
+        self.train_samples = samples[indecies]
+        logger.debug(f"Get train samples of {self.ref_samples.shape}")
+
+        # 构建数据加载器
+        tensor_train_samples = torch.from_numpy(self.train_samples).float() # (n, seq_len, channels)
+        dataset = TensorDataset(tensor_train_samples)
+        persistent_workers = self.num_workers > 0
+        self.train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True,
+                                       num_workers=self.num_workers, persistent_workers=persistent_workers)
+        logger.debug(f"Train loader size: {len(self.train_loader)}")
+        logger.debug(f"Train samples shape: {self.train_samples.shape}")
+
     def fit(self, ref_signals: np.ndarray):
         self._build_ref_samples(ref_signals)
-
+        self._build_train_loader(ref_signals)
         self.model = self._build_model()
-        tensor_ref_samples = torch.from_numpy(self.ref_samples).float()
-        dataset = TensorDataset(tensor_ref_samples)
-        train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         self.model = train_model(
             model=self.model,
-            train_dataloader=train_loader,
+            train_dataloader=self.train_loader,
             loss_fn=self.loss_fn,
             optimizer_class=self.optimizer,
             lr=self.lr,
@@ -223,16 +266,14 @@ class AEDetector(MeasureDetector):
             device=self.device,  # 或 "cpu"
         )
 
-        self.model.eval()
-        preds = predict_model(
+        ref_samples_batch = torch.from_numpy(self.ref_samples).float() # (n, seq_len, channels)
+        preds, losses = predict_model(
             model=self.model,
-            dataloader=train_loader,
-            device=self.device,  # 或 "cpu"
+            batch=ref_samples_batch,
+            loss_fn=self.loss_fn,
+            device=self.device,
         )
-        losses = []
-        for pred in preds:
-            losses.append( self.loss_fn(pred, tensor_ref_samples).item() )
-        self.ref_measure = np.array(losses)
+        self.ref_measure = losses # (n,)
         logger.debug(f"Training mean loss: {np.mean(losses):.4f}")
         logger.debug(f"Reference signal measure shape: {self.ref_measure.shape}")
     
@@ -251,13 +292,14 @@ class AEDetector(MeasureDetector):
         计算待检测信号片段的重建误差
         '''
         assert self.model is not None, "请先调用 fit 方法训练模型"
-        self.model.eval()
-        unknown_measures = []
-        for sample in samples:
-            sample_tensor = torch.tensor(sample, dtype=torch.float32).unsqueeze(0)
-            logger.debug(f"Sample shape: {sample_tensor.shape}")
-            recon = self.model(sample_tensor)
-            loss = self.loss_fn(recon, sample_tensor)
-            unknown_measures.append(loss.item())
+
+        unknown_samples_batch = torch.from_numpy(samples).float() # (n, seq_len, channels)
+        preds, losses = predict_model(
+            model=self.model,
+            batch=unknown_samples_batch,
+            loss_fn=self.loss_fn,
+            device=self.device,
+        )
+        unknown_measures = [float(loss) for loss in losses] # (n,)
         
         return unknown_measures

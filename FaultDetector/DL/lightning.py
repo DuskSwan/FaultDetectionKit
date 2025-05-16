@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+from typing import Callable,Tuple
 from loguru import logger
+import numpy as np
 
 import torch
 import torch.nn.functional as F
@@ -92,7 +95,7 @@ def train_model(
         model, loss_fn, optimizer_class, lr, extra_args
     )
 
-    logger = CSVLogger(log_dir, name="training_log")
+    csvlogger = CSVLogger(log_dir, name="training_log")
 
     checkpoint_callback = ModelCheckpoint(
         monitor="train_loss",
@@ -105,9 +108,10 @@ def train_model(
     # trainer = L.Trainer(
     #     max_epochs=max_epochs,
     #     accelerator=device,
-    #     logger=logger,
+    #     logger=csvlogger,
     #     callbacks=[checkpoint_callback],
     # )
+    logger.debug(f"Training on {device} for {max_epochs} epochs.")
     trainer = L.Trainer(
         max_epochs=max_epochs,
         accelerator=device,
@@ -121,41 +125,54 @@ def train_model(
         enable_progress_bar=False, # 关闭默认进度条
     )
 
+    logger.debug(f"Training on {device} for {max_epochs} epochs with {len(train_dataloader)} batches.")
     trainer.fit(lightning_model, train_dataloader)
     return model
 
 @torch.no_grad()
 def predict_model(
     model: torch.nn.Module,
-    dataloader: torch.utils.data.DataLoader,
+    batch: Tuple[torch.Tensor, torch.Tensor] | torch.Tensor,
+    loss_fn: Callable,
     device: str = "cpu",
-) -> list[torch.Tensor]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    通用推理函数，返回模型对 dataloader 中所有样本的输出。
+    通用推理函数，返回模型对一组样本(也就是一个batch)的输出以及对应的loss。
 
     参数:
         model: 训练好的模型
-        dataloader: 推理用 DataLoader
-        device: 推理设备（"cpu" | "cuda" | "auto"）
+        batch: 输入数据，可能是 (x, y) 或 x
+        loss_fn: 损失函数
+        device: 推理设备（"cpu" | "cuda"）
 
     返回:
-        一个列表，每个元素是一个 batch 的预测结果 Tensor
+        一个元组，前者是模型输出，后者是损失值，统一以np.ndarray 形式返回
     """
     model.eval()
-
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
     model = model.to(device)
 
-    outputs = []
-    for batch in dataloader:
-        if isinstance(batch, (list, tuple)):
-            x = batch[0].to(device)
-        else:
-            x = batch.to(device)
-        preds = model(x)
-        outputs.append(preds.cpu())  # 返回 cpu 上的 tensor，方便后续处理
+    # batch 可能是 (x, y) 或 x
+    if isinstance(batch, tuple):
+        x, y = batch
+    elif isinstance(batch, torch.Tensor):
+        x = y = batch
+    else:
+        logger.error(f"Can't recognize batch type: {type(batch)}")
+        raise ValueError("Batch format not recognized. Expected tuple (x, y) or torch.tensor x")
     
+    x = x.to(device) # (batch_size, seq_len, n_channels)
+    y = y.to(device)
+    preds = model(x) # (batch_size, seq_len, n_channels)
+    loss_elementwise = loss_fn(preds, y, reduction='none') # (batch_size,)
+        # 这里的损失函数需要支持 reduction='none'，也即不合并，返回每个点位的损失
+    losses = loss_elementwise.mean(dim=(1, 2))  # 将损失在通道维度上求平均，得到每个样本的损失值
 
-    return outputs
+    # 将 preds 和 loss 移动到 CPU 上
+    if device == "cuda":
+        preds = preds.cpu().numpy()
+        losses = losses.cpu().numpy()
+    elif device == "cpu":
+        preds = preds.numpy()
+        losses = losses.numpy()
+    logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
+    return preds, losses

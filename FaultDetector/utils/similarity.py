@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import pearsonr
 from dtaidistance import dtw
 
-from loguru import logger
+# from loguru import logger
 
 def euclidean_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
     """
@@ -93,7 +93,7 @@ def pearson_correlation_coefficient(signal1: np.ndarray, signal2: np.ndarray) ->
     if len(signal1) < 2: # 皮尔逊相关系数至少需要两个点
         return np.nan # 或者根据需要返回0.0或抛出错误
 
-    corr, p = pearsonr(signal1, signal2)
+    corr, _ = pearsonr(signal1, signal2)
     return float(corr)
 
 def dtw_distance(signal1: np.ndarray, signal2: np.ndarray) -> float:
@@ -180,7 +180,7 @@ def calc_multi_channel_signal_similarity(signal1: np.ndarray,
         use_kwargs = True
     else:
         raise ValueError(f"不支持方法{method}。请选择 'euclidean', 'cosine', 'manhattan', 'chebyshev', 'pearson' 或 'dtw'。")
-    
+
     if len(signal1.shape) == 1:
         return function(signal1, signal2, **kwargs) if use_kwargs else function(signal1, signal2)
 
