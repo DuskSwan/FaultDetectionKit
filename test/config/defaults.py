@@ -12,9 +12,9 @@ _C.SEED = 0
 # Detect algorithm
 # -----------------------------------------------------------------------------
 _C.DETECT = CN()
-_C.DETECT.REF_SAMPLE = 5 # Number of reference samples
+_C.DETECT.REF_SAMPLE = 5 # 总参考样本数
 _C.DETECT.SIMILARITY_METHOD = 'dtw'
-_C.DETECT.DTW_RADIUS = 200
+_C.DETECT.DTW_RADIUS = 200 # DTW 计算半径
 _C.DETECT.OUTLIER_METHOD = 'zscore'
 _C.DETECT.SIGNAL_THRESHOLD = 0.75
 
@@ -52,7 +52,7 @@ _C.TRAIN.OPTIMIZER = 'adamw'
 # TEST/VALIDATION
 # -----------------------------------------------------------------------------
 _C.TEST = CN()
-_C.TEST.SAMPLE_N = 5
+_C.TEST.SAMPLE_N = 5 # 推理时每个信号截取的样本数
 
 # -----------------------------------------------------------------------------
 # INFERENCE

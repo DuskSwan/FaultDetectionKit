@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 
 
 class GeneralLightningModule(L.LightningModule):
-    def __init__(self, model, loss_fn, optimizer_class, lr, extra_args=None):
+    def __init__(self, model, loss_fn, optimizer_class, lr):
         """
         通用 LightningModule 封装
 
@@ -27,7 +27,6 @@ class GeneralLightningModule(L.LightningModule):
         self.loss_fn = loss_fn
         self.optimizer_class = optimizer_class
         self.lr = lr
-        self.extra_args = extra_args or {}
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -35,7 +34,6 @@ class GeneralLightningModule(L.LightningModule):
     def training_step(self, batch, batch_idx):
         """
         自定义的训练逻辑，可根据需要扩展。
-        对于 Diffusion，可在 extra_args 中传入 noise_scheduler 等模块。
         """
         # batch 可能是 (x, y) 或 (x,)
         if len(batch) == 2:
@@ -48,10 +46,6 @@ class GeneralLightningModule(L.LightningModule):
 
         x = x.to(self.device)
         y = y.to(self.device)
-
-        # 如有自定义输入处理（例如 add_noise），通过 extra_args 使用
-        # if "preprocess_batch" in self.extra_args:
-        #     x, y = self.extra_args["preprocess_batch"](x, y, self.device)
 
         preds = self.forward(x)
         loss = self.loss_fn(preds, y)
@@ -71,9 +65,8 @@ def train_model(
     lr=1e-3,
     max_epochs=20,
     device="cpu",
-    log_dir="logs",
-    ckpt_dir="./checkpoints",
-    extra_args=None,
+    # log_dir="logs",
+    # ckpt_dir="./checkpoints",
 ):
     """
     通用训练入口。
@@ -94,18 +87,18 @@ def train_model(
     optimizer_class = optimizer_resolve(optimizer)
     loss_fn = loss_fn_resolve(loss_name)
     lightning_model = GeneralLightningModule(
-        model, loss_fn, optimizer_class, lr, extra_args
+        model, loss_fn, optimizer_class, lr
     )
 
-    csvlogger = CSVLogger(log_dir, name="training_log")
+    # csvlogger = CSVLogger(log_dir, name="training_log")
 
-    checkpoint_callback = ModelCheckpoint(
-        monitor="train_loss",
-        dirpath=ckpt_dir,
-        filename="model-{epoch:02d}-{train_loss:.4f}",
-        save_top_k=1,
-        mode="min",
-    )
+    # checkpoint_callback = ModelCheckpoint(
+    #     monitor="train_loss",
+    #     dirpath=ckpt_dir,
+    #     filename="model-{epoch:02d}-{train_loss:.4f}",
+    #     save_top_k=1,
+    #     mode="min",
+    # )
 
     trainer = L.Trainer(
         max_epochs=max_epochs,
@@ -170,7 +163,7 @@ def predict_model(
     elif device == "cpu":
         preds = preds.numpy()
         losses = losses.numpy()
-    logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
+    # logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
     return preds, losses
 
 def optimizer_resolve(optimizer_class: str) -> Callable:

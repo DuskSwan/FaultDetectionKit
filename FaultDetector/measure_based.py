@@ -45,7 +45,7 @@ class MeasureDetector:
         '''
         从参考信号中构建参考样本
         '''
-        logger.debug("Calculating reference signal similarity...")
+        # logger.debug("Calculating reference signal similarity...")
         samples = np.array([])
 
         assert self.ref_sample_n > 0, "参考样本数量必须大于0"
@@ -61,7 +61,7 @@ class MeasureDetector:
         
         indecies = np.random.choice(len(samples), size=min(self.ref_sample_n, len(samples)), replace=False)
         self.ref_samples = samples[indecies]
-        logger.debug(f"Build reference samples of {self.ref_samples.shape}")
+        # logger.debug(f"Build reference samples of {self.ref_samples.shape}")
     
     def fit(self, ref_signals: np.ndarray):
         '''
@@ -105,7 +105,7 @@ class MeasureDetector:
         outlier_list = self._check_samples(samples)
         outlier_rate = sum(outlier_list) / len(samples)
 
-        logger.debug(f"Outlier rate: {outlier_rate:.2f}")
+        # logger.debug(f"Outlier rate: {outlier_rate:.2f}")
         return outlier_rate > self.signal_threshold
 
     def predict(self, signals: np.ndarray) -> bool | list[bool]:
@@ -158,7 +158,8 @@ class RawSignalSimilarityDetector(MeasureDetector):
         '''
         self._build_ref_samples(ref_signals)
         self.ref_measure = calculate_pairwise_similarity(self.ref_samples, method=self.similarity_method, dtw_radius=self.dtw_radius)
-        logger.debug(f"Reference signal similarity shape: {self.ref_measure.shape}")
+        # logger.debug(f"Reference signal similarity shape: {self.ref_measure.shape}")
+        logger.debug(f"Reference signal similarity mean: {np.mean(self.ref_measure):.2f}")
     
     def _calc_unknown_measures(self, samples: np.ndarray) -> List[float]:
         '''

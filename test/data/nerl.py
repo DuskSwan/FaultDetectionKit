@@ -1,4 +1,8 @@
-# encoding: utf-8
+'''
+本文件用于读取美国国家可再生能源实验室（NREL）的风电齿轮箱振动数据集，数据集包含健康和损坏的风电机组的振动信号。数据集中的每个.mat文件包含多个通道的振动信号。
+下载链接: https://catalog.data.gov/dataset/wind-turbine-gearbox-condition-monitoring-vibration-analysis-benchmarking-datasets
+'''
+
 from pathlib import Path
 from loguru import logger
 
@@ -22,7 +26,7 @@ def load_signal_from_mat(file_path) -> pd.DataFrame:
         df[k] = pd.Series(v)
     return df
 
-def get_samples_from_signal(signal:np.ndarray, sample_n, window_size) -> np.array:
+def get_samples_from_signal(signal:np.ndarray, sample_n, window_size) -> np.ndarray:
     """
     Get samples from signal
     Args:
