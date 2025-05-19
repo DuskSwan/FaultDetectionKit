@@ -1,49 +1,52 @@
-from pathlib import Path
-
+# -*- coding: utf-8 -*-
 import numpy as np
 from loguru import logger
-
-from config import cfg
-from data.nerl import load_signal_from_mat, build_dataloader
-from utils import set_random_seed, initiate_cfg
 
 import sys
 sys.path.append(".")
 from FaultDetector.measure_based import RawSignalSimilarityDetector, AEDetector
 
-def test_dataloader():
-    sample_n = cfg.TRAIN.SAMPLE_N
-    window_size = cfg.PREPROCESS.WINDOW_SIZE
-    batch_size = cfg.TRAIN.BATCH_SIZE
+def normal_signal(t):
+    """Generate a normal signal."""
+    signal = 2 * np.sin(2 * np.pi * 0.1 * t) + 0.5 * np.random.normal(size=t.shape)
+    return signal.reshape(-1, 1)
 
-    dataloader = build_dataloader(sample_n, window_size, batch_size, is_train=True)
+def faulty_signal(t):
+    """Generate a faulty signal."""
+    signal = 2 * np.cos(2 * np.pi * 0.1 * t + 1) + 1 * np.random.normal(size=t.shape) + 0.05 * t
+    return signal.reshape(-1, 1)
+    
+def gen_test_signals(ref_n=5, normal_n=1, faulty_n=1):
+    """
+    Generate test signals for testing. A signal is a 2D array with shape (n, m), where n is the length of the signal and m is the number of channels.
+    The function generates reference signals, normal signals, and faulty signals.
+    """
+    t = np.linspace(0, 10, 1000)
 
-    for i, (X, y) in enumerate(dataloader):
-        print(f"Batch {i}:")
-        print(f"X shape: {X.shape}, y shape: {y.shape}")
-        if i == 2:
-            break
+    ref_signals = [normal_signal(t) for _ in range(ref_n)]
+    ref_signals = np.stack(ref_signals, axis=0)
+
+    normal_signals = [normal_signal(t) for _ in range(normal_n)]
+    normal_signals = np.stack(normal_signals, axis=0)
+
+    faulty_signals = [faulty_signal(t) for _ in range(faulty_n)]
+    faulty_signals = np.stack(faulty_signals, axis=0)
+    
+    logger.debug(f"ref_signals shape: {ref_signals.shape}, normal_signals shape: {normal_signals.shape}, faulty_signals shape: {faulty_signals.shape}")
+    return ref_signals, normal_signals, faulty_signals
 
 
 def test_raw_signal_similarity_detector():
-    set_random_seed(cfg.SEED)
 
-    ref_sample_n = cfg.DETECT.REF_SAMPLE
-    test_sample_n = cfg.TEST.SAMPLE_N
-    window_size = cfg.PREPROCESS.WINDOW_SIZE
-    sim_method = cfg.DETECT.SIMILARITY_METHOD
-    dtw_radius = cfg.DETECT.DTW_RADIUS
-    outlier_method = cfg.DETECT.OUTLIER_METHOD
-    signal_abnormal_threshold = cfg.DETECT.SIGNAL_THRESHOLD
+    ref_sample_n = 10
+    test_sample_n = 5
+    window_size = 32
+    sim_method = "dtw"
+    dtw_radius = None
+    outlier_method = "zscore"
+    signal_abnormal_threshold = 0.5
 
-    # Load reference signals
-    normal_path = Path(r"datasets\NREL\Healthy")
-    signal_paths = list(normal_path.glob("*.mat"))
-    ref_signals = []
-    for signal_path in signal_paths:
-        signal = load_signal_from_mat(signal_path).values
-        ref_signals.append(signal)
-    ref_signals = np.array(ref_signals)
+    ref_signals, normal_signals, faulty_signals = gen_test_signals(ref_n=5, normal_n=1, faulty_n=1)
 
     # Call the detector
     detector = RawSignalSimilarityDetector(
@@ -58,123 +61,44 @@ def test_raw_signal_similarity_detector():
     detector.fit(ref_signals)
 
     # Load test signal
-    test_signal_path = Path(r"datasets\NREL\Damaged\D2.mat")
-    # test_signal_path = Path(r"datasets\NREL\Healthy\H1.mat")
-    test_signal = load_signal_from_mat(test_signal_path).values
-    pred_label = detector.predict(test_signal)
-    true_label = "Damaged" in str(test_signal_path)
+    test_signals = np.concatenate((normal_signals, faulty_signals), axis=0)
+    pred_label = detector.predict(test_signals)
+    true_label = [False, True]
     logger.info(f"Test signal is abnormal? {pred_label}. True label: {true_label}.")
 
 
 def test_AE_detector():
-    set_random_seed(cfg.SEED)
 
     # Call the detector
     detector = AEDetector(
-        device=cfg.DEVICE,
-        ref_sample_n=cfg.DETECT.REF_SAMPLE,
-        pred_sample_n=cfg.TEST.SAMPLE_N,
-        window_size=cfg.PREPROCESS.WINDOW_SIZE,
-        outlier_method=cfg.DETECT.OUTLIER_METHOD,
-        signal_threshold=cfg.DETECT.SIGNAL_THRESHOLD,
-        latent_dim=cfg.MODEL.AE_LATENT_DIM,
-        optimizer=cfg.TRAIN.OPTIMIZER,
-        batch_size=cfg.TRAIN.BATCH_SIZE,
-        max_epochs=cfg.TRAIN.MAX_EPOCHS,
-        num_workers=cfg.DATALOADER.NUM_WORKERS,
-        train_sample_n=cfg.TRAIN.SAMPLE_N,
-        loss_name=cfg.TRAIN.LOSS_FN,
-        lr=cfg.TRAIN.LR,
+        device="cuda",
+        ref_sample_n=10,
+        pred_sample_n=3,
+        window_size=32,
+        outlier_method="zscore",
+        signal_threshold=0.5,
+        latent_dim=16,
+        optimizer="adamw",
+        batch_size=32,
+        max_epochs=10,
+        num_workers=0,
+        train_sample_n=100,
+        loss_name="mse",
+        lr=1e-3,
         hidden_dims=[16,32,64],
     )
 
-    # Load reference signals
-    normal_path = Path(r"datasets\NREL\Healthy")
-    signal_paths = list(normal_path.glob("*.mat"))
-    ref_signals = []
-    for signal_path in signal_paths:
-        signal = load_signal_from_mat(signal_path).values
-        ref_signals.append(signal)
-    ref_signals = np.array(ref_signals)
+    ref_signals, normal_signals, faulty_signals = gen_test_signals(ref_n=5, normal_n=1, faulty_n=1)
 
     detector.fit(ref_signals)
 
-    # Load test signal
-    # test_signal_path = Path(r"datasets\NREL\Damaged\D2.mat")
-    test_signal_path = Path(r"datasets\NREL\Healthy\H1.mat")
-    test_signal = load_signal_from_mat(test_signal_path).values
-    pred_label = detector.predict(test_signal)
-    true_label = "Damaged" in str(test_signal_path)
-    logger.info(f"\n Pred label: {pred_label} \n True label: {true_label}.")
-
-def detector_campare():
-    """
-    Compare the performance of different detectors.
-    """
-    set_random_seed(cfg.SEED)
-
-    ae_detector = AEDetector(
-        device=cfg.DEVICE,
-        ref_sample_n=cfg.DETECT.REF_SAMPLE,
-        pred_sample_n=cfg.TEST.SAMPLE_N,
-        window_size=cfg.PREPROCESS.WINDOW_SIZE,
-        outlier_method=cfg.DETECT.OUTLIER_METHOD,
-        signal_threshold=cfg.DETECT.SIGNAL_THRESHOLD,
-        latent_dim=cfg.MODEL.AE_LATENT_DIM,
-        optimizer=cfg.TRAIN.OPTIMIZER,
-        batch_size=cfg.TRAIN.BATCH_SIZE,
-        max_epochs=cfg.TRAIN.MAX_EPOCHS,
-        num_workers=cfg.DATALOADER.NUM_WORKERS,
-        train_sample_n=cfg.TRAIN.SAMPLE_N,
-        loss_name=cfg.TRAIN.LOSS_FN,
-        lr=cfg.TRAIN.LR,
-    )
-
-    sim_detector = RawSignalSimilarityDetector(
-        ref_sample_n=cfg.DETECT.REF_SAMPLE,
-        pred_sample_n=cfg.TEST.SAMPLE_N,
-        window_size=cfg.PREPROCESS.WINDOW_SIZE,
-        similarity_method=cfg.DETECT.SIMILARITY_METHOD,
-        dtw_radius=cfg.DETECT.DTW_RADIUS,
-        outlier_method=cfg.DETECT.OUTLIER_METHOD,
-        signal_threshold=cfg.DETECT.SIGNAL_THRESHOLD,
-    )
-
-    # Load reference signals
-    normal_dir = Path(r"datasets\NREL\Healthy")
-    signal_paths = list(normal_dir.glob("*.mat"))
-    ref_signals = []
-    for signal_path in signal_paths:
-        signal = load_signal_from_mat(signal_path).values
-        ref_signals.append(signal)
-    ref_signals = np.array(ref_signals)
-
-    # Fit the detectors
-    ae_detector.fit(ref_signals)
-    sim_detector.fit(ref_signals)
-
-    # Load test signals
-    damaged_dir = Path(r"datasets\NREL\Damaged")
-    test_signal_files = list(damaged_dir.glob("*.mat")) + list(normal_dir.glob("*.mat"))
-    test_signals = []
-    for signal_path in test_signal_files:
-        signal = load_signal_from_mat(signal_path).values
-        test_signals.append(signal)
-    test_signals = np.array(test_signals) # (n_samples, window_size, n_channels)
-    
-    # calculate the performance of each detector
-    ae_preds = ae_detector.predict(test_signals) # List[bool] of shape (n_samples, )
-    sim_preds = sim_detector.predict(test_signals) 
-    true_labels = ["Damaged" in str(signal_path) for signal_path in test_signal_files]
-    ae_accuracy = np.mean(np.array(ae_preds) == np.array(true_labels))
-    sim_accuracy = np.mean(np.array(sim_preds) == np.array(true_labels))
-    logger.info(f"AE Detector Accuracy: {ae_accuracy:.2f}")
-    logger.info(f"Similarity Detector Accuracy: {sim_accuracy:.2f}")
+    test_signals = np.concatenate((normal_signals, faulty_signals), axis=0)
+    pred_label = detector.predict(test_signals)
+    true_label = [False, True]
+    logger.info(f"Test signal is abnormal? {pred_label}. True label: {true_label}.")
 
 
 if __name__ == "__main__":
-    # test_dataloader()
-    # test_raw_signal_similarity_detector()
+    test_raw_signal_similarity_detector()
     test_AE_detector()
-    # detector_campare()
 

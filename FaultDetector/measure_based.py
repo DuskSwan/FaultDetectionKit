@@ -143,7 +143,7 @@ class RawSignalSimilarityDetector(MeasureDetector):
     '''
     def __init__(self, 
                  similarity_method: str = 'dtw',
-                 dtw_radius: int = 5,
+                 dtw_radius: Optional[int] = 5,
                  **kwargs,
                 ):
         # father class parameters
