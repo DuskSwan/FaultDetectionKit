@@ -13,6 +13,7 @@ log/
 output/
 datasets/NREL/
 
-# qt GUI file
-build
-dist
+# dev ignore
+envall.txt
+pipreqs.txt
+usage/
