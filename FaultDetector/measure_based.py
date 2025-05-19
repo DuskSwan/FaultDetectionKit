@@ -118,12 +118,12 @@ class MeasureDetector:
         '''
         assert self.ref_samples.size > 0 and self.ref_measure.size > 0, "请先调用 fit 方法计算参考信号相似度分布"
         if len(signals.shape) == 2:
-            logger.debug("Predicting signal 1/1")
+            # logger.debug("Predicting signal 1/1")
             return self.predict_one_signal(signals)
         elif len(signals.shape) == 3:
             results = []
             for i,signal in enumerate(signals):
-                logger.debug(f"Predicting signal {i+1}/{len(signals)}")
+                # logger.debug(f"Predicting signal {i+1}/{len(signals)}")
                 result = self.predict_one_signal(signal)
                 results.append(result)
             return results
@@ -278,8 +278,8 @@ class AEDetector(MeasureDetector):
             device=self.device,
         )
         self.ref_measure = losses # (n,)
-        logger.debug(f"Training mean loss: {np.mean(losses):.4f}")
-        logger.debug(f"Reference signal measure shape: {self.ref_measure.shape}")
+        logger.debug(f"Ref singal mean loss: {np.mean(losses):.4f}")
+        # logger.debug(f"Reference signal measure shape: {self.ref_measure.shape}")
     
     def _build_model(self):
         sample = self.ref_samples[0]

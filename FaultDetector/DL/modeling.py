@@ -6,17 +6,17 @@ class Encoder(nn.Module):
         super().__init__()
         layers = []
         in_channels = n_channels
-        for h in hidden_dims:
-            layers.append(nn.Conv1d(in_channels, h, kernel_size=3, stride=2, padding=1))
-            layers.append(nn.ReLU(True))
-            in_channels = h
-        self.conv = nn.Sequential(*layers)
+        self.pool = nn.MaxPool1d(kernel_size=2)
 
-        # 计算下采样后的序列长度
         self.enc_out_len = seq_len
-        for _ in hidden_dims:
-            self.enc_out_len = (self.enc_out_len + 2 * 1 - 1 * (3 - 1) - 1) // 2 + 1  # Conv1d公式
+        for h in hidden_dims:
+            layers.append(nn.Conv1d(in_channels, h, kernel_size=3, stride=1, padding=1))  # stride=1
+            layers.append(nn.ReLU(True))
+            layers.append(nn.MaxPool1d(kernel_size=2))  # 添加池化层
+            in_channels = h
+            self.enc_out_len = self.enc_out_len // 2  # 每次池化长度减半
 
+        self.conv = nn.Sequential(*layers)
         self.fc = nn.Linear(hidden_dims[-1] * self.enc_out_len, latent_dim)
 
     def forward(self, x):
@@ -30,22 +30,24 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, seq_len, n_channels, latent_dim, hidden_dims):
         super().__init__()
-        # rev_dims = list(reversed(hidden_dims))
+
         self.enc_out_len = seq_len
         for _ in hidden_dims[::-1]:
-            self.enc_out_len = (self.enc_out_len + 2 * 1 - 1 * (3 - 1) - 1) // 2 + 1
+            self.enc_out_len = self.enc_out_len // 2
 
         self.fc = nn.Linear(latent_dim, hidden_dims[0] * self.enc_out_len)
 
         layers = []
         for i in range(len(hidden_dims) - 1):
-            layers.append(nn.ConvTranspose1d(hidden_dims[i], hidden_dims[i + 1],
-                                              kernel_size=3, stride=2, padding=1, output_padding=1))
+            layers.append(nn.Upsample(scale_factor=2, mode='nearest'))  # 对应 MaxPool
+            layers.append(nn.Conv1d(hidden_dims[i], hidden_dims[i + 1],
+                                    kernel_size=3, stride=1, padding=1))
             layers.append(nn.ReLU(True))
 
-        layers.append(nn.ConvTranspose1d(hidden_dims[-1], n_channels,
-                                         kernel_size=3, stride=2, padding=1, output_padding=1))
-        layers.append(nn.Sigmoid())
+        layers.append(nn.Upsample(scale_factor=2, mode='nearest'))
+        layers.append(nn.Conv1d(hidden_dims[-1], n_channels,
+                                kernel_size=3, stride=1, padding=1))
+        # layers.append(nn.Sigmoid()) # Sigmoid 会将输出限制在 [0, 1] 之间，可能不适合所有数据
 
         self.deconv = nn.Sequential(*layers)
 

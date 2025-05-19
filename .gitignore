@@ -11,9 +11,10 @@ __pycache__
 *__pycache__
 log/
 output/
-datasets/NREL/
 
 # dev ignore
 envall.txt
 pipreqs.txt
 usage/
+checkpoints/
+datasets/

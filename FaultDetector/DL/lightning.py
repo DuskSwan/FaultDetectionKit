@@ -8,7 +8,13 @@ import torch.nn.functional as F
 import lightning as L
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import Callback
 
+class EpochEndCallback(Callback):
+    def on_train_epoch_end(self, trainer, pl_module):
+        epoch = trainer.current_epoch + 1
+        loss = trainer.callback_metrics["train_loss"].item()
+        print(f"[{epoch}/{trainer.max_epochs}] train_loss: {loss:.4f}")
 
 class GeneralLightningModule(L.LightningModule):
     def __init__(self, model, loss_fn, optimizer_class, lr):
@@ -20,7 +26,6 @@ class GeneralLightningModule(L.LightningModule):
             loss_fn: 损失函数 (callable)
             optimizer_class: 优化器类，例如 torch.optim.AdamW
             lr: 学习率
-            extra_args: 包含任意额外组件的 dict，例如 noise_scheduler、timesteps_sampler 等
         """
         super().__init__()
         self.model = model
@@ -104,11 +109,11 @@ def train_model(
         max_epochs=max_epochs,
         accelerator=device,
         devices=1,
-        # callbacks=[
-        #     checkpoint_callback,
-        # ],
+        callbacks=[
+            EpochEndCallback(),
+        ],
         # log_every_n_steps=1,
-        enable_checkpointing=False,  # 关闭默认检查点保存
+        # enable_checkpointing=False,  # 关闭默认检查点保存
         logger=False,  # 关闭默认日志
         enable_progress_bar=False, # 关闭默认进度条
     )
