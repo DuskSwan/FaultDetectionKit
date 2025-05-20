@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Optional
+from loguru import logger
 import numpy as np
 
 def is_outlier_zscore(ref_array: np.ndarray, value: float, threshold: float = 3.0) -> bool:
@@ -15,8 +16,11 @@ def is_outlier_zscore(ref_array: np.ndarray, value: float, threshold: float = 3.
     std = np.std(ref_array)
     if std == 0:
         return False
-    z_score = abs((value - mean) / std)
-    return bool(z_score > threshold)
+    # z_score = abs((value - mean) / std)
+    left = mean - threshold * std
+    right = mean + threshold * std
+    # logger.debug(f"mean: {mean:.2f}, std: {std:.2f}, left: {left:.2f}, right: {right:.2f}, value: {value:.2f}")
+    return bool(value < left or value > right)
 
 def is_outlier_iqr(ref_array: np.ndarray, value: float, multiplier: float = 1.5) -> bool:
     """
@@ -32,6 +36,7 @@ def is_outlier_iqr(ref_array: np.ndarray, value: float, multiplier: float = 1.5)
     iqr = q3 - q1
     lower_bound = q1 - multiplier * iqr
     upper_bound = q3 + multiplier * iqr
+    # logger.debug(f"lower_bound: {lower_bound:.2f}, upper_bound: {upper_bound:.2f}, value: {value:.2f}")
     return (value < lower_bound) or (value > upper_bound)
 
 def is_outlier_mad(ref_array: np.ndarray, value: float, threshold: float = 3.5) -> bool:
@@ -48,10 +53,13 @@ def is_outlier_mad(ref_array: np.ndarray, value: float, threshold: float = 3.5) 
     mad = np.median(np.abs(ref_array - median))
     if mad == 0:
         return False
-    modified_z = 0.6745 * (value - median) / mad
-    return bool(abs(modified_z) > threshold)
+    # modified_z = 0.6745 * (value - median) / mad
+    left = median - threshold * mad / 0.6745
+    right = median + threshold * mad / 0.6745
+    # logger.debug(f"median: {median:.2f}, mad{mad:.2f}, left: {left:.2f}, right: {right:.2f}, value: {value:.2f}")
+    return bool(value < left or value > right)
 
-def is_outlier(ref_array: np.ndarray, values: List[float], method: str = 'zscore') -> List[bool]:
+def is_outlier(ref_array: np.ndarray, values: List[float], method: str = 'zscore', threshold: Optional[float] = None) -> List[bool]:
     """
     判断离群值。
     参数:
@@ -72,5 +80,7 @@ def is_outlier(ref_array: np.ndarray, values: List[float], method: str = 'zscore
     elif method == 'mad':
         is_outlier_func = is_outlier_mad
     
-    return [is_outlier_func(ref_array, value) for value in values]
-    
+    if threshold is not None:
+        return [is_outlier_func(ref_array, value, threshold) for value in values]
+    else:
+        return [is_outlier_func(ref_array, value) for value in values]

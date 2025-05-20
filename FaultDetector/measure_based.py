@@ -27,6 +27,7 @@ class MeasureDetector:
         ref_sample_n: int = 5,
         pred_sample_n: int = 5,
         outlier_method: str = 'zscore',
+        outlier_threshold: Optional[float] = None,
         signal_threshold: float = 0.75,
     ):
         # necessary parameters
@@ -37,6 +38,7 @@ class MeasureDetector:
         self.signal_threshold = signal_threshold
         # optional parameters
         self.window_stride = window_stride
+        self.outlier_threshold = outlier_threshold
         # parameters to be set in fit
         self.ref_samples = np.ndarray([])
         self.ref_measure = np.ndarray([])
@@ -56,7 +58,8 @@ class MeasureDetector:
 
         for i,signal in enumerate(ref_signals):
             if sample_per_signal_list[i] > 0:
-                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
+                samples0 = sliding_window(signal, self.window_size, self.window_stride, 
+                                          sample_per_signal_list[i], shuffle=True)
                 samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
         
         indecies = np.random.choice(len(samples), size=min(self.ref_sample_n, len(samples)), replace=False)
@@ -90,7 +93,8 @@ class MeasureDetector:
         '''
         检查待检测信号片段的度量是否为离群值，每个度量计算一次
         '''
-        is_outlier_result = is_outlier(ref_array=self.ref_measure, values=unknown_measures, method=self.outlier_method)
+        is_outlier_result = is_outlier(ref_array=self.ref_measure, values=unknown_measures, 
+                                       method=self.outlier_method, threshold=self.outlier_threshold)
         return is_outlier_result
 
     def predict_one_signal(self, signal: np.ndarray) -> bool:
@@ -101,7 +105,7 @@ class MeasureDetector:
         返回:
             bool: True 表示异常信号，False 表示正常信号
         '''
-        samples = sliding_window(signal, self.window_size, self.window_stride, self.pred_sample_n)
+        samples = sliding_window(signal, self.window_size, self.window_stride, self.pred_sample_n, shuffle=True)
         outlier_list = self._check_samples(samples)
         outlier_rate = sum(outlier_list) / len(samples)
 
@@ -239,7 +243,8 @@ class AEDetector(MeasureDetector):
         samples = np.array([])
         for i,signal in enumerate(ref_signals):
             if sample_per_signal_list[i] > 0:
-                samples0 = sliding_window(signal, self.window_size, self.window_stride, sample_per_signal_list[i])
+                samples0 = sliding_window(signal, self.window_size, self.window_stride, 
+                                          sample_per_signal_list[i], shuffle=True)
                 samples = np.concatenate((samples, samples0), axis=0) if samples.size else samples0
         
         # 截取特定数量的样本
