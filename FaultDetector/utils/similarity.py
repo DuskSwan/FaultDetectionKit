@@ -213,8 +213,8 @@ def calculate_pairwise_similarity(ref_samples: np.ndarray, method: str, **kwargs
     ref_similarities = []
 
     ij_pairs = [(i, j) for i in range(n) for j in range(i+1, n)]
-    # n_pairs = min(2*n, len(ij_pairs)) # O(2n)
     n_pairs = len(ij_pairs) # O(n^2)
+    n_pairs = min(2*n, len(ij_pairs)) # O(2n)
     calc_pairs = np.random.choice(len(ij_pairs), size=n_pairs, replace=False)
 
     for idx in calc_pairs:
