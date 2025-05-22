@@ -46,9 +46,12 @@ class MeasureDetector:
     def _build_ref_samples(self, ref_signals: np.ndarray):
         '''
         从参考信号中构建参考样本
+        ref_signals是一个多通道信号，形状为 (n, m, c)，其中 n 是信号数量，m 是每个信号的长度，c 是通道数。
+        该方法会将参考信号片段划分为多个窗口，并从中随机选择一定数量的样本作为参考样本。
         '''
         # logger.debug("Calculating reference signal similarity...")
         samples = np.array([])
+        assert len(ref_signals.shape) == 3, "参考信号应该以(n, m, c)的形式输入，实际为" + str(ref_signals.shape)
 
         assert self.ref_sample_n > 0, "参考样本数量必须大于0"
         ref_signal_n = len(ref_signals)
@@ -69,7 +72,9 @@ class MeasureDetector:
     def fit(self, ref_signals: np.ndarray):
         '''
         根据参考信号片段计算归为正常信号的参考度量（如相似度）
+        ref_signals是一个多通道信号，形状为 (n, m, c)，其中 n 是信号数量，m 是每个信号的长度，c 是通道数。
         '''
+        assert len(ref_signals.shape) == 3, "参考信号应该以(n, m, c)的形式输入，实际为" + str(ref_signals.shape)
         self._build_ref_samples(ref_signals)
         # self.ref_measure = ...
         raise NotImplementedError("请在子类中实现该方法")
@@ -302,6 +307,7 @@ class AEDetector(MeasureDetector):
         计算待检测信号片段的重建误差
         '''
         assert self.model is not None, "请先调用 fit 方法训练模型"
+        assert len(samples.shape) == 3, "待检测信号应该以(n, m, c)的形式输入，实际为" + str(samples.shape)
 
         unknown_samples_batch = torch.from_numpy(samples).float() # (n, seq_len, channels)
         preds, losses = predict_model(
