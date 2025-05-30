@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-class Encoder(nn.Module):
+class AEEncoder(nn.Module):
     def __init__(self, seq_len, n_channels, latent_dim, hidden_dims):
         super().__init__()
         layers = []
@@ -26,8 +26,7 @@ class Encoder(nn.Module):
         latent = self.fc(x)
         return latent
 
-
-class Decoder(nn.Module):
+class AEDecoder(nn.Module):
     def __init__(self, seq_len, n_channels, latent_dim, hidden_dims):
         super().__init__()
 
@@ -58,12 +57,11 @@ class Decoder(nn.Module):
         x = x.permute(0, 2, 1)  # (B, C, L) -> (B, L, C)
         return x
 
-
 class TimeSeriesConvAE(nn.Module):
     def __init__(self, seq_len, n_channels, latent_dim=64, hidden_dims=[16, 32]):
         super().__init__()
-        self.encoder = Encoder(seq_len, n_channels, latent_dim, hidden_dims)
-        self.decoder = Decoder(seq_len, n_channels, latent_dim, hidden_dims[::-1])
+        self.encoder = AEEncoder(seq_len, n_channels, latent_dim, hidden_dims)
+        self.decoder = AEDecoder(seq_len, n_channels, latent_dim, hidden_dims[::-1])
 
     def forward(self, x):
         latent = self.encoder(x)
@@ -71,6 +69,17 @@ class TimeSeriesConvAE(nn.Module):
         return recon
 
 
+class LSTMClassifier(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super(LSTMClassifier, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        out = out[:, -1, :]  # 取最后一个时间步的输出
+        out = self.fc(out)
+        return out
 
 # 示例用法
 if __name__ == "__main__":

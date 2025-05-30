@@ -125,16 +125,15 @@ def train_model(
 @torch.no_grad()
 def predict_model(
     model: torch.nn.Module,
-    batch: Tuple[torch.Tensor, torch.Tensor] | torch.Tensor,
-    loss_name: str,
+    batch: torch.Tensor,
     device: str = "cpu",
-) -> tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """
     通用推理函数，返回模型对一组样本(也就是一个batch)的输出以及对应的loss。
 
     参数:
         model: 训练好的模型
-        batch: 输入数据，可能是 (x, y) 或 x
+        batch: 一组输入数据，形状为 (batch_size, seq_len, n_channels) 
         loss_name: 损失函数名称，例如 "mse" 或 "cross_entropy"
         device: 推理设备（"cpu" | "cuda"）
 
@@ -143,33 +142,16 @@ def predict_model(
     """
     model.eval()
     model = model.to(device)
-
-    # batch 可能是 (x, y) 或 x
-    if isinstance(batch, tuple):
-        x, y = batch
-    elif isinstance(batch, torch.Tensor):
-        x = y = batch
-    else:
-        logger.error(f"Can't recognize batch type: {type(batch)}")
-        raise ValueError("Batch format not recognized. Expected tuple (x, y) or torch.tensor x")
-    
-    x = x.to(device) # (batch_size, seq_len, n_channels)
-    y = y.to(device)
+    x = batch.to(device)
     preds = model(x) # (batch_size, seq_len, n_channels)
-    loss_fn = loss_fn_resolve(loss_name)
-    loss_elementwise = loss_fn(preds, y, reduction='none') # (batch_size,)
-        # 这里的损失函数需要支持 reduction='none'，也即不合并，返回每个点位的损失
-    losses = loss_elementwise.mean(dim=(1, 2))  # 将损失在通道维度上求平均，得到每个样本的损失值
 
     # 将 preds 和 loss 移动到 CPU 上
     if device == "cuda":
         preds = preds.cpu().numpy()
-        losses = losses.cpu().numpy()
     elif device == "cpu":
         preds = preds.numpy()
-        losses = losses.numpy()
     # logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
-    return preds, losses
+    return preds
 
 def optimizer_resolve(optimizer_class: str) -> Callable:
     """
@@ -200,9 +182,10 @@ def loss_fn_resolve(loss_fn: str) -> Callable:
     返回:
         对应的损失函数
     """
-    if loss_fn == "mse":
-        return F.mse_loss
-    if loss_fn == "mae":
-        return F.l1_loss
-    
-    raise ValueError(f"Unsupported loss function: {loss_fn}. Supported functions are 'mse', 'mae'.")
+    valid_loss_fn = {
+        "mse": F.mse_loss,
+        "mae": F.l1_loss,
+        "cross_entropy": F.cross_entropy,
+    }
+    assert loss_fn in valid_loss_fn, f"Unsupported loss function: {loss_fn}. Supported functions are {list(valid_loss_fn.keys())}."
+    return valid_loss_fn[loss_fn]

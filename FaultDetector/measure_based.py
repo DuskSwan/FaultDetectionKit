@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 
+'''
+该模块实现了基于信号相似度的故障检测器，整体思路是：
+1. 读取参考信号片段，计算参考信号片段之间的相似度分布
+2. 读取待检测信号片段，计算待检测信号片段与参考信号片段之间的相似度
+3. 判断待检测信号片段与参考信号的相似度是否为离群值，是则认为该信号片段为异常信号
+'''
+
 import numpy as np
 from loguru import logger
 from typing import Optional, List, Callable
@@ -9,10 +16,8 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 from .data import sliding_window
-
 from .DL.modeling import TimeSeriesConvAE
-from .DL.lightning import train_model, predict_model
-
+from .DL.lightning import train_model, loss_fn_resolve
 from .utils.similarity import calc_multi_channel_signal_similarity, calculate_pairwise_similarity
 from .utils.outlier import is_outlier
 
@@ -283,7 +288,7 @@ class AEDetector(MeasureDetector):
         )
 
         ref_samples_batch = torch.from_numpy(self.ref_samples).float() # (n, seq_len, channels)
-        preds, losses = predict_model(
+        preds, losses = AE_predict(
             model=self.model,
             batch=ref_samples_batch,
             loss_name=self.loss_name,
@@ -313,7 +318,7 @@ class AEDetector(MeasureDetector):
         assert len(samples.shape) == 3, "待检测信号应该以(n, m, c)的形式输入，实际为" + str(samples.shape)
 
         unknown_samples_batch = torch.from_numpy(samples).float() # (n, seq_len, channels)
-        preds, losses = predict_model(
+        preds, losses = AE_predict(
             model=self.model,
             batch=unknown_samples_batch,
             loss_name=self.loss_name,
@@ -322,3 +327,42 @@ class AEDetector(MeasureDetector):
         unknown_measures = [float(loss) for loss in losses] # (n,)
         
         return unknown_measures
+
+@torch.no_grad()
+def AE_predict(
+    model: torch.nn.Module,
+    batch: torch.Tensor,
+    loss_name: str,
+    device: str = "cpu",
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    AE推理函数，返回模型对一组样本(也就是一个batch)的输出以及对应的loss。
+
+    参数:
+        model: 训练好的模型
+        batch: 输入数据
+        loss_name: 损失函数名称，例如 "mse" 
+        device: 推理设备（"cpu" | "cuda"）
+
+    返回:
+        一个元组，前者是模型输出，后者是损失值，统一以np.ndarray 形式返回
+    """
+    model.eval()
+    model = model.to(device)
+    x = y = batch.to(device)
+    preds = model(x) # (batch_size, seq_len, n_channels)
+
+    loss_fn = loss_fn_resolve(loss_name)
+    loss_elementwise = loss_fn(preds, y, reduction='none') # (batch_size,)
+        # 这里的损失函数需要支持 reduction='none'，也即不合并，返回每个点位的损失
+    losses = loss_elementwise.mean(dim=(1, 2))  # 将损失在通道维度上求平均，得到每个样本的损失值
+
+    # 将 preds 和 loss 移动到 CPU 上
+    if device == "cuda":
+        preds = preds.cpu().numpy()
+        losses = losses.cpu().numpy()
+    elif device == "cpu":
+        preds = preds.numpy()
+        losses = losses.numpy()
+    # logger.debug(f"Preds shape: {preds.shape}, Losses shape: {losses.shape}")
+    return preds, losses
