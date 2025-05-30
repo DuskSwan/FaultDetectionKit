@@ -71,12 +71,12 @@ class MeasureDetector:
     
     def fit(self, ref_signals: np.ndarray):
         '''
-        根据参考信号片段计算归为正常信号的参考度量（如相似度）
+        根据参考信号片段计算归为正常信号的参考度量（如相似度）self.ref_measure
         ref_signals是一个多通道信号，形状为 (n, m, c)，其中 n 是信号数量，m 是每个信号的长度，c 是通道数。
         '''
         assert len(ref_signals.shape) == 3, "参考信号应该以(n, m, c)的形式输入，实际为" + str(ref_signals.shape)
         self._build_ref_samples(ref_signals)
-        # self.ref_measure = ...
+        # self.ref_measure = ... 必须要计算出self.ref_measure
         raise NotImplementedError("请在子类中实现该方法")
     
     def _check_samples(self, samples: np.ndarray) -> List[bool]:
@@ -86,6 +86,8 @@ class MeasureDetector:
         unknown_measures = self._calc_unknown_measures(samples)
         logger.debug(f"Unknown measures: {np.mean(unknown_measures):.2f}")
         dectect_result = self._is_outlier(unknown_measures)
+        # dectect_result = self._is_outlier([np.mean(unknown_measures)])
+        # logger.debug(f"Detect result: {dectect_result}")
         return dectect_result
     
     def _calc_unknown_measures(self, samples: np.ndarray) -> List[float]:
@@ -112,9 +114,9 @@ class MeasureDetector:
         '''
         samples = sliding_window(signal, self.window_size, self.window_stride, self.pred_sample_n, shuffle=True)
         outlier_list = self._check_samples(samples)
+        # return any(outlier_list)
         outlier_rate = sum(outlier_list) / len(samples)
-
-        # logger.debug(f"Outlier rate: {outlier_rate:.2f}")
+        logger.debug(f"Outlier rate: {outlier_rate:.2f}")
         return outlier_rate > self.signal_threshold
 
     def predict(self, signals: np.ndarray) -> bool | list[bool]:
@@ -288,7 +290,8 @@ class AEDetector(MeasureDetector):
             device=self.device,
         )
         self.ref_measure = losses # (n,)
-        logger.debug(f"Ref singal mean loss: {np.mean(losses):.4f}")
+        logger.debug(f"Ref singal mean loss: {np.mean(losses):.4f} ,max: {np.max(losses):.2f}")
+        logger.debug(f"Ref signal measure: {self.ref_measure}")
         # logger.debug(f"Reference signal measure shape: {self.ref_measure.shape}")
     
     def _build_model(self):

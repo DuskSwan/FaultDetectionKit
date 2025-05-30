@@ -36,7 +36,7 @@ def is_outlier_iqr(ref_array: np.ndarray, value: float, multiplier: float = 1.5)
     iqr = q3 - q1
     lower_bound = q1 - multiplier * iqr
     upper_bound = q3 + multiplier * iqr
-    # logger.debug(f"lower_bound: {lower_bound:.2f}, upper_bound: {upper_bound:.2f}, value: {value:.2f}")
+    logger.debug(f"q1:{q1}, q3:{q3}, right: {upper_bound:.2f}, value: {value:.2f}")
     return (value < lower_bound) or (value > upper_bound)
 
 def is_outlier_mad(ref_array: np.ndarray, value: float, threshold: float = 3.5) -> bool:
@@ -56,7 +56,7 @@ def is_outlier_mad(ref_array: np.ndarray, value: float, threshold: float = 3.5) 
     # modified_z = 0.6745 * (value - median) / mad
     left = median - threshold * mad / 0.6745
     right = median + threshold * mad / 0.6745
-    # logger.debug(f"median: {median:.2f}, mad{mad:.2f}, left: {left:.2f}, right: {right:.2f}, value: {value:.2f}")
+    logger.debug(f"median: {median:.2f}, mad:{mad:.2f}, right: {right:.2f}, value: {value:.2f}")
     return bool(value < left or value > right)
 
 def is_outlier(ref_array: np.ndarray, values: List[float], method: str = 'zscore', threshold: Optional[float] = None) -> List[bool]:

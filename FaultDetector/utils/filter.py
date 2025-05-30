@@ -24,6 +24,9 @@ def extract_bands_time_domain(signal: np.ndarray,
     filtered_signal : np.ndarray
         重构后的时域信号，只保留指定 bands 中的频率成分。
     """
+    assert len(signal.shape) == 1, "Signal must be a 1D array"
+    assert len(bands) > 0, "Bands list must not be empty"
+    
     N = len(signal)
     # FFT 及频率轴
     fft_vals = np.fft.fft(signal)
