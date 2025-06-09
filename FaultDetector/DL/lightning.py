@@ -113,7 +113,7 @@ def train_model(
             EpochEndCallback(),
         ],
         # log_every_n_steps=1,
-        # enable_checkpointing=False,  # 关闭默认检查点保存
+        enable_checkpointing=False,  # 关闭默认检查点保存
         logger=False,  # 关闭默认日志
         enable_progress_bar=False, # 关闭默认进度条
     )

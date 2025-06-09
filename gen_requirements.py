@@ -4,7 +4,7 @@ import subprocess
 REQ_FILE = "pipreqs.txt"
 ALL_FILE = "envall.txt"
 OUT_FILE = "requirements.txt"
-SRC_DIR = "./FaultDetector"  # 你的代码目录
+SRC_DIR = "./FaultDetector"  # 核心代码目录
 
 def run_command(cmd):
     print(f"💻 正在运行命令: {cmd}")
