@@ -9,12 +9,13 @@ from FaultDetector.classify_based import LSTMClassifyDetector
 
 def normal_signal(t):
     """Generate a normal signal."""
-    signal = 2 * np.sin(2 * np.pi * 0.1 * t) + 0.5 * np.random.normal(size=t.shape)
+    signal = 2 * np.sin(2 * np.pi * 0.1 * t) + 0.1 * np.random.normal(size=t.shape)
     return signal.reshape(-1, 1) # (n, 1) shape
 
 def faulty_signal(t):
     """Generate a faulty signal."""
-    signal = 3 * np.cos(2 * np.pi * 0.1 * t + 1) + 0.5 * np.random.normal(size=t.shape) + 0.5 * t
+    # signal = 3 * np.cos(2 * np.pi * 0.1 * t + 1) + 0.5 * np.random.normal(size=t.shape) + 0.5 * t
+    signal = 0.5 * np.random.normal(size=t.shape) + 0.5 * t
     return signal.reshape(-1, 1) # (n, 1) shape
 
 def gen_test_signals(normal_n=10, faulty_n=7):
@@ -38,14 +39,14 @@ def test_LSTM_detector():
         device='cpu',
         batch_size=50,
         train_sample_n=200,
-        pred_sample_n=11,
+        pred_sample_n=15,
         hidden_size=32,
         num_layers=1,
-        max_epochs=100,
-        lr=0.0001,
+        max_epochs=50,
+        lr=0.0005,
         loss_name='cross_entropy',
         optimizer='adamw',
-        window_size=128,
+        window_size=256,
         n_classes=2,  # 0 for normal, 1 for faulty
         n_channels=1,  # Each signal has 1 channel
         hidden_sizes=[32, 16],  # Example hidden sizes for LSTM layers

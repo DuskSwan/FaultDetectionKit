@@ -92,16 +92,14 @@ class LSTMClassifier(nn.Module):
         """
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_rate if num_layers > 1 else 0)
-        # 第一个线性层的输入维度是 LSTM 的 hidden_dim
-        linear_layers_input_dim = hidden_dim
+        
+        linear_layers_input_dim = hidden_dim # 第一个线性层的输入维度是 LSTM 的 hidden_dim
         self.linear_layers = nn.ModuleList()
-
         for i, h_size in enumerate(hidden_sizes):
             self.linear_layers.append(nn.Linear(linear_layers_input_dim, h_size))
-            # 除了最后一个线性层，其余需要激活函数
-            if i < len(hidden_sizes) - 1:
-                self.linear_layers.append(nn.ReLU()) # 可以根据需要更换激活函数，例如 nn.LeakyReLU(), nn.Sigmoid()
+            self.linear_layers.append(nn.ReLU()) # 可以根据需要更换激活函数，例如 nn.LeakyReLU(), nn.Sigmoid()
             linear_layers_input_dim = h_size # 更新下一个线性层的输入维度
+        self.linear_layers.pop(-1)  # 移除最后一个 ReLU 激活层
 
         # 如果 hidden_sizes 为空，则直接从 LSTM 输出到 output_dim
         self.output_layer = nn.Linear(hidden_dim, output_dim) if not hidden_sizes else nn.Linear(hidden_sizes[-1], output_dim)
@@ -117,9 +115,7 @@ class LSTMClassifier(nn.Module):
             torch.Tensor: 分类器的输出，形状为 (batch_size, output_dim)。
         """
         out, (hn, cn) = self.lstm(x) #, (h0, c0)
-        # hn[-1] 是最后一个 LSTM 层的隐藏状态，形状为 (batch_size, hidden_dim)
-        features = hn[-1]
-
+        features = hn[-1] # hn[-1] 是最后一个 LSTM 层的隐藏状态，形状为 (batch_size, hidden_dim)
         for layer in self.linear_layers:
             features = layer(features)
         output = self.output_layer(features)

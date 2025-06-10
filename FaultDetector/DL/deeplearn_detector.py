@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import TensorDataset, DataLoader
 
 
-class DeeplearnDetector():
+class DeeplearnClass():
     """
     涉及深度学习的检测器基类，提供了基本的训练和预测接口。
     """

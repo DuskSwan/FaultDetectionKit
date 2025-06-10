@@ -12,7 +12,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from .data import sliding_window
 from .DL.modeling import LSTMClassifier
 from .DL.lightning import train_model, predict_model
-from .DL.deeplearn_detector import DeeplearnDetector
+from .DL.deeplearn_detector import DeeplearnClass
 
 class ClassifyDetector:
     """
@@ -82,7 +82,7 @@ class ClassifyDetector:
         else:
             raise ValueError("输入信号的形状不正确")
 
-class LSTMClassifyDetector(ClassifyDetector, DeeplearnDetector):
+class LSTMClassifyDetector(ClassifyDetector, DeeplearnClass):
     """
     基于 LSTM 的分类模型，用于信号异常检测。
     """
@@ -116,9 +116,9 @@ class LSTMClassifyDetector(ClassifyDetector, DeeplearnDetector):
         self.n_classes = n_classes
         self.n_channels = n_channels
         self.hidden_sizes = hidden_sizes  # 用于 LSTMClassifier 的隐藏层大小列表
-        # 放在 DeeplearnDetector 的初始化之前，因为DeeplearnDetector定义了model的初始化
+        # 放在 DeeplearnClass 的初始化之前，因为DeeplearnClass定义了model的初始化
 
-        DeeplearnDetector.__init__(self,
+        DeeplearnClass.__init__(self,
             device = device, 
             batch_size = batch_size,
             max_epochs = max_epochs,
