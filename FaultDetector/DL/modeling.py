@@ -70,16 +70,60 @@ class TimeSeriesConvAE(nn.Module):
 
 
 class LSTMClassifier(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size):
-        super(LSTMClassifier, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
+    def __init__(self, 
+        input_dim: int, 
+        hidden_dim: int, 
+        num_layers: int, 
+        output_dim: int, 
+        hidden_sizes: list[int], 
+        dropout_rate: float = 0.0
+    ):
+        """
+        初始化信号分类网络。
+
+        Args:
+            input_dim (int): 输入信号的特征维度。
+            hidden_dim (int): LSTM 层的隐藏状态维度。
+            num_layers (int): LSTM 层的层数。
+            output_dim (int): 分类器的输出类别数量。
+            hidden_sizes (list[int]): 线性层的隐藏维度列表。
+                                       例如：[128, 64] 表示两个线性层，第一个输出128维，第二个输出64维。
+            dropout_rate (float): LSTM 层和线性层之间的 Dropout 比率，默认为 0.0。
+        """
+        super().__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_rate if num_layers > 1 else 0)
+        # 第一个线性层的输入维度是 LSTM 的 hidden_dim
+        linear_layers_input_dim = hidden_dim
+        self.linear_layers = nn.ModuleList()
+
+        for i, h_size in enumerate(hidden_sizes):
+            self.linear_layers.append(nn.Linear(linear_layers_input_dim, h_size))
+            # 除了最后一个线性层，其余需要激活函数
+            if i < len(hidden_sizes) - 1:
+                self.linear_layers.append(nn.ReLU()) # 可以根据需要更换激活函数，例如 nn.LeakyReLU(), nn.Sigmoid()
+            linear_layers_input_dim = h_size # 更新下一个线性层的输入维度
+
+        # 如果 hidden_sizes 为空，则直接从 LSTM 输出到 output_dim
+        self.output_layer = nn.Linear(hidden_dim, output_dim) if not hidden_sizes else nn.Linear(hidden_sizes[-1], output_dim)
 
     def forward(self, x):
-        out, _ = self.lstm(x)
-        out = out[:, -1, :]  # 取最后一个时间步的输出
-        out = self.fc(out)
-        return out
+        """
+        定义前向传播。
+
+        Args:
+            x (torch.Tensor): 输入张量，形状通常为 (batch_size, sequence_length, input_dim)。
+
+        Returns:
+            torch.Tensor: 分类器的输出，形状为 (batch_size, output_dim)。
+        """
+        out, (hn, cn) = self.lstm(x) #, (h0, c0)
+        # hn[-1] 是最后一个 LSTM 层的隐藏状态，形状为 (batch_size, hidden_dim)
+        features = hn[-1]
+
+        for layer in self.linear_layers:
+            features = layer(features)
+        output = self.output_layer(features)
+        return output
 
 # 示例用法
 if __name__ == "__main__":

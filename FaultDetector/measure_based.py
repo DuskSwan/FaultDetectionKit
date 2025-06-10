@@ -281,7 +281,7 @@ class AEDetector(MeasureDetector):
             model=self.model,
             train_dataloader=self.train_loader,
             loss_name=self.loss_name,
-            optimizer=self.optimizer,
+            optimizer_name=self.optimizer,
             lr=self.lr,
             max_epochs=self.max_epochs,
             device=self.device,  # 或 "cpu"

@@ -66,7 +66,7 @@ def train_model(
     model,
     train_dataloader,
     loss_name: str,
-    optimizer: str,
+    optimizer_name: str,
     lr=1e-3,
     max_epochs=20,
     device="cpu",
@@ -89,7 +89,7 @@ def train_model(
         extra_args: 自定义 batch 处理函数等额外组件，例如:
                     {"preprocess_batch": fn}，或者用于 Diffusion 的组件
     """
-    optimizer_class = optimizer_resolve(optimizer)
+    optimizer_class = optimizer_resolve(optimizer_name)
     loss_fn = loss_fn_resolve(loss_name)
     lightning_model = GeneralLightningModule(
         model, loss_fn, optimizer_class, lr
