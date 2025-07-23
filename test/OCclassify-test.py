@@ -4,7 +4,7 @@ from loguru import logger
 
 import sys
 sys.path.append(".")
-from FaultDetector.detect_based import OCSVMDetector
+from FaultDetector.oneclass_based import OCSVMDetector, IsolationForestDetector
 
 
 def normal_signal(t):
@@ -58,5 +58,28 @@ def test_OCSVM_detector():
     accuracy = np.mean(pred_labels == true_labels)
     logger.info(f"Test accuracy: {accuracy:.2f}")
 
+def test_isolation_forest_detector():
+    detector = IsolationForestDetector(
+        train_sample_n=350,
+        pred_sample_n=15,
+        window_size=128,
+        signal_threshold=0.6,  
+    )
+
+    normal_n = 10
+    faulty_n = 10
+    train_num = 5
+    # Fit the model
+    normal_signals, faulty_signals = gen_test_signals(normal_n, faulty_n)
+    detector.fit(normal_signals[:train_num])
+
+    # Predict on the test signals
+    test_signals = np.concatenate([normal_signals[train_num:], faulty_signals[train_num:]], axis=0)
+    true_labels = np.concatenate([np.ones(len(normal_signals) - train_num), -np.ones(len(faulty_signals) - train_num)], axis=0)
+    pred_labels = detector.predict(test_signals)
+    accuracy = np.mean(pred_labels == true_labels)
+    logger.info(f"Test accuracy: {accuracy:.2f}")
+
 if __name__ == "__main__":
-    test_OCSVM_detector()
+    # test_OCSVM_detector()
+    test_isolation_forest_detector()

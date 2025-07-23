@@ -9,6 +9,7 @@ from loguru import logger
 import numpy as np
 
 from sklearn.svm import OneClassSVM
+from sklearn.ensemble import IsolationForest
 
 from .data import sliding_window
 
@@ -30,10 +31,10 @@ class OneClassifyDetector:
         self.train_sample_n = train_sample_n
         self.signal_threshold = signal_threshold
         self.model = None
-    
-    def _signals_to_samples(self, signals: np.ndarray) -> np.ndarray:
+
+    def _signals_to_train_samples(self, signals: np.ndarray) -> np.ndarray:
         '''
-        将信号转换为样本
+        将信号转换为训练样本
         参数:
             signals (np.ndarray): 待检测信号，形状为 (n, m, c)，其中 n 是信号数量，m 是信号长度，c 是通道数。
         返回:
@@ -104,10 +105,57 @@ class OneClassifyDetector:
         else:
             raise ValueError("输入信号的形状不正确")
 
-class OCSVMDetector(OneClassifyDetector):
-    """
-    基于 OneClass-SVM 的分类模型，用于信号异常检测。
-    """
+class OneClassSklearnDetector(OneClassifyDetector):
+    """基于 sklearn 的单分类方法检测器"""
+    def __init__(
+            self,
+            train_sample_n: int = 1000,
+            pred_sample_n: int = 20,
+            window_size: int = 256,
+            window_stride: int = 128,
+            signal_threshold: float = 0.75,
+        ):
+        OneClassifyDetector.__init__(self,
+            train_sample_n=train_sample_n,
+            pred_sample_n=pred_sample_n,
+            window_size=window_size,
+            window_stride=window_stride,
+            signal_threshold=signal_threshold,
+        )
+        self.model = None  # 模型初始化为 None，待子类实现
+
+    def _build_model(self, *args, **kwargs):
+        '''
+        创建单分类模型。
+        '''
+        raise NotImplementedError("请在子类中实现 _build_model 方法")
+    
+    def fit(self, signals: np.ndarray) -> None:
+        assert len(signals.shape) == 3, "Signals must be a 3D array (samples, time steps, channels)"
+        assert signals.shape[1] >= self.window_size, f"Signal length must be at least {self.window_size} for windowing"
+        assert signals.shape[2] > 0, "Signals must have at least one channel"
+
+        X_train = self._signals_to_train_samples(signals)
+        logger.debug(f"Training samples shape: {X_train.shape}")
+        X_train = X_train.reshape(X_train.shape[0], -1)  # Flatten the samples
+
+        assert self.model is not None, "模型未初始化"
+        self.model.fit(X_train) 
+    def _check_samples(self, samples: np.ndarray) -> np.ndarray:
+        '''
+        检测样本的类别
+        参数:
+            samples (np.ndarray): 待检测样本，形状为 (n, m, c)，其中 n 是样本数量，m 是信号长度，c 是通道数。
+        返回:
+            np.ndarray: 类别编号列表，每个元素为 1 或 -1，1 表示正常，-1 表示异常。
+        '''
+        assert self.model is not None, "请先调用 fit 方法训练模型"
+        X_samples = samples.reshape(samples.shape[0], -1)
+        res = self.model.predict(X_samples)
+        return res
+
+class OCSVMDetector(OneClassSklearnDetector):
+    """基于 OneClass-SVM 的分类模型"""
     def __init__(
             self, 
             train_sample_n: int = 1000,
@@ -119,12 +167,12 @@ class OCSVMDetector(OneClassifyDetector):
             gamma: Literal['scale', 'auto'] = 'scale',
             nu: float = 0.5,
         ):
-        OneClassifyDetector.__init__(self,
-            train_sample_n = train_sample_n,
-            pred_sample_n = pred_sample_n,
-            window_size = window_size,
-            window_stride = window_stride,
-            signal_threshold = signal_threshold,
+        OneClassSklearnDetector.__init__(self,
+            train_sample_n=train_sample_n,
+            pred_sample_n=pred_sample_n,
+            window_size=window_size,
+            window_stride=window_stride,
+            signal_threshold=signal_threshold,
         )
 
         # OCSVM parameters
@@ -143,38 +191,42 @@ class OCSVMDetector(OneClassifyDetector):
             nu=self.nu,
         )
 
-    def fit(self, signals: np.ndarray) -> None:
-        """
-        训练模型。
-        
-        参数
-        ----
-        signals : np.ndarray
-            待检测信号，形状为 (n, m, c)，其中 n 是信号数量，m 是信号长度，c 是通道数。
-        """
-        assert len(signals.shape) == 3, "Signals must be a 3D array (samples, time steps, channels)"
-        assert signals.shape[1] >= self.window_size, f"Signal length must be at least {self.window_size} for windowing"
-        assert signals.shape[2] > 0, "Signals must have at least one channel"
+class IsolationForestDetector(OneClassSklearnDetector):
+    """基于 Isolation Forest 的分类模型"""
+    def __init__(
+            self, 
+            train_sample_n: int = 1000,
+            pred_sample_n: int = 20,
+            window_size: int = 256,
+            window_stride: int = 128,
+            signal_threshold: float = 0.75,
+            n_estimators: int = 100,
+            max_samples: float | Literal['auto'] = "auto",
+            max_features: float = 1.0,
+        ):
+        OneClassSklearnDetector.__init__(self,
+            train_sample_n=train_sample_n,
+            pred_sample_n=pred_sample_n,
+            window_size=window_size,
+            window_stride=window_stride,
+            signal_threshold=signal_threshold,
+        )
 
-        X_train = self._signals_to_samples(signals)
-        logger.debug(f"Training samples shape: {X_train.shape}")
-        X_train = X_train.reshape(X_train.shape[0], -1)  # Flatten the samples for OCSVM
-        # 训练模型
-        self.model.fit(X_train)
-
-    def _check_samples(self, samples: np.ndarray) -> np.ndarray:
+        # Isolation Forest parameters
+        self.n_estimators: int = n_estimators
+        self.max_samples: float | Literal['auto'] = max_samples
+        self.max_features: float = max_features
+        self.model = self._build_model()  # 初始化模型
+    
+    def _build_model(self) -> IsolationForest:
         '''
-        检测样本的类别
-        参数:
-            samples (np.ndarray): 待检测样本，形状为 (n, m, c)，其中 n 是样本数量，m 是信号长度，c 是通道数。
-        返回:
-            np.ndarray: 类别编号列表，每个元素为 1 或 -1，1 表示正常，-1 表示异常。
+        创建 Isolation Forest 模型。
         '''
-        assert self.model is not None, "请先调用 fit 方法训练模型"
-        X_samples = samples.reshape(samples.shape[0], -1)
-        # 使用模型进行预测
-        res = self.model.predict(X_samples)
-        return res
+        return IsolationForest(
+            n_estimators=self.n_estimators,
+            max_samples=self.max_samples,
+            max_features=self.max_features,
+        )
 
 if __name__ == "__main__":
     pass
