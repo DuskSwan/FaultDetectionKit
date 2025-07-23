@@ -1,3 +1,7 @@
+'''
+该模块实现有关数据预处理的方法。
+'''
+
 from typing import Optional
 from loguru import logger
 

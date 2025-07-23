@@ -3,6 +3,7 @@
 '''
 该模块实现了基于分类模型的信号检测器，其思路就是建立一个分类模型，将正常信号和异常信号进行分类。
 '''
+
 from typing import Optional
 from loguru import logger
 import numpy as np

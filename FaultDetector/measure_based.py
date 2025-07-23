@@ -35,6 +35,17 @@ class MeasureDetector:
         outlier_threshold: Optional[float] = None,
         signal_threshold: float = 0.75,
     ):
+        '''
+        初始化检测器
+        参数:
+            window_size (int): 窗口大小，默认值为 1024
+            window_stride (Optional[int]): 窗口滑动步长，默认值为 None，表示与窗口大小相同
+            ref_sample_n (int): 参考样本数量，默认值为 5
+            pred_sample_n (int): 待检测样本数量，默认值为 5
+            outlier_method (str): 离群值检测方法，默认值为 'zscore'
+            outlier_threshold (Optional[float]): 离群值检测阈值，默认值为 None，表示使用方法默认阈值
+            signal_threshold (float): 信号异常阈值，若完整信号异常片段的比例超过该值则判定信号异常，默认值为 0.75
+        '''
         # necessary parameters
         self.window_size = window_size
         self.ref_sample_n = ref_sample_n
